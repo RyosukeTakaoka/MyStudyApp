@@ -6,19 +6,18 @@
 // =====================================================================
 
 // ---- アプリの識別名とバージョン(アプリとウィジェットで共通)----
-// Bundle Identifier を変えるときは、ここだけを書きかえる(ウィジェットと App Group も自動で合わせて変わる)
-APP_BUNDLE_ID = com.ryosuketakaoka.MyStudyApp
-// アプリとウィジェットが共有するフォルダ(App Group)の名前
-APP_GROUP_ID = group.$(APP_BUNDLE_ID)
+// Bundle Identifier と App Group は、変数を使わずに各設定へ直接書いてある(下の2行はメモ)。
+//   アプリ本体:            com.ryosuketakaoka.MyStudyApp
+//   ウィジェット:          com.ryosuketakaoka.MyStudyApp.MyStudyWidget
+//   スクリーンタイム監視:  com.ryosuketakaoka.MyStudyApp.FocusMonitor
+//   App Group(共有フォルダ): group.com.ryosuketakaoka.MyStudyApp  ← Apple の決まりで「group.」から始める
 // バージョン。TestFlight にアップロードするたびに CURRENT_PROJECT_VERSION を 1 ずつ増やす
 MARKETING_VERSION = 1.1
 CURRENT_PROJECT_VERSION = 2
 
 // ---- スクリーンタイム(集中モード)----
-// Xcode から ▶ で入れる版(Debug)では、いつも使えます。
-// TestFlight の版(Release)で使うには、Apple の「Family Controls (Distribution)」の許可が必要です。
-// 許可が下りたら、下の行を「RELEASE_SCREEN_TIME_SUFFIX = -ScreenTime」に書きかえてください。
-RELEASE_SCREEN_TIME_SUFFIX =
+// Xcode から ▶ で入れる版(Debug)では使えます。TestFlight の版(Release)では、
+// Apple の「Family Controls (Distribution)」の許可が下りるまで使えません(docs/SETUP_GUIDE.md 参照)。
 
 // まず「空」を入れておく。Secrets.xcconfig がまだ無くてもビルドが通るようにするため。
 SUPABASE_HOST =

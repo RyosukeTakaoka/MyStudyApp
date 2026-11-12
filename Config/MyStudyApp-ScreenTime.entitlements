@@ -10,7 +10,7 @@
 	<!-- ウィジェットとデータを共有するフォルダ(App Group) -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>$(APP_GROUP_ID)</string>
+		<string>group.com.ryosuketakaoka.MyStudyApp</string>
 	</array>
 	<!-- スクリーンタイム(集中モード)を使う許可 -->
 	<key>com.apple.developer.family-controls</key>

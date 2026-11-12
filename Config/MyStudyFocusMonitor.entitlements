@@ -5,7 +5,7 @@
 	<!-- アプリとデータを共有するフォルダ(App Group) -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>$(APP_GROUP_ID)</string>
+		<string>group.com.ryosuketakaoka.MyStudyApp</string>
 	</array>
 </dict>
 </plist>

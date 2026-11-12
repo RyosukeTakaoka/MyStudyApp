@@ -317,7 +317,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# スクリーンタイムの監視用の拡張機能を、Xcode から ▶ で入れる版(Debug)にだけ入れる。\n# TestFlight 用の版(Release)に入れると、Apple の許可(Family Controls Distribution)が無いため、アップロードを断られる。\n# 許可が下りたら、Config.xcconfig の RELEASE_SCREEN_TIME_SUFFIX を -ScreenTime にすると、Release にも入る。\nif [ \"${CONFIGURATION}\" = \"Debug\" ] || [ -n \"${RELEASE_SCREEN_TIME_SUFFIX}\" ]; then\n  mkdir -p \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}\"\n  ditto \"${BUILT_PRODUCTS_DIR}/MyStudyFocusMonitor.appex\" \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}/MyStudyFocusMonitor.appex\"\nfi\n";
+			shellScript = "# スクリーンタイムの監視用の拡張機能を、Xcode から ▶ で入れる版(Debug)にだけ入れる。\n# TestFlight 用の版(Release)に入れると、Apple の許可(Family Controls Distribution)が無いため、アップロードを断られる。\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  mkdir -p \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}\"\n  ditto \"${BUILT_PRODUCTS_DIR}/MyStudyFocusMonitor.appex\" \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}/MyStudyFocusMonitor.appex\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -501,7 +501,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -515,7 +515,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp$(RELEASE_SCREEN_TIME_SUFFIX).entitlements";
+				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
@@ -532,7 +532,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -556,7 +556,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).MyStudyWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp.MyStudyWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -581,7 +581,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).MyStudyWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp.MyStudyWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -606,7 +606,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).FocusMonitor";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp.FocusMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -619,7 +619,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyFocusMonitor$(RELEASE_SCREEN_TIME_SUFFIX).entitlements";
+				CODE_SIGN_ENTITLEMENTS = Config/MyStudyFocusMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MyStudyFocusMonitor-Info.plist";
@@ -631,7 +631,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).FocusMonitor";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp.FocusMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;

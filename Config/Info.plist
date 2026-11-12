@@ -9,7 +9,7 @@
 	<string>$(SUPABASE_KEY)</string>
 	<!-- アプリとウィジェットが共有するフォルダ(App Group)の名前 -->
 	<key>AppGroupID</key>
-	<string>$(APP_GROUP_ID)</string>
+	<string>group.com.ryosuketakaoka.MyStudyApp</string>
 	<!-- ライブアクティビティ(ロック画面・ダイナミックアイランドの表示)を使う -->
 	<key>NSSupportsLiveActivities</key>
 	<true/>

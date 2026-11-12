@@ -84,7 +84,7 @@ cd MyStudyApp && git checkout claude/exam-schedule-ios-app-wbcq5h
 3. 左上の青いアイコン **MyStudyApp**(いちばん上)をクリック → 中央の **TARGETS → MyStudyApp** → 上のタブ **Signing & Capabilities** を開く
 4. **Team** で自分の Apple Developer のチームを選ぶ
 5. **Bundle Identifier** を確認する。最初は `com.ryosuketakaoka.MyStudyApp` になっています
-   - 世界で1つだけの名前である必要があります。エラーが出たら、`Config/Config.xcconfig` の `APP_BUNDLE_ID` を `com.自分の名前.MyStudyApp` のように変えてください(Xcode の画面の欄では変えないでください。ウィジェットと合わなくなります)
+   - 世界で1つだけの名前である必要があります。このアプリは `com.ryosuketakaoka.MyStudyApp` に固定しています(ウィジェットは `.MyStudyWidget`、監視用の拡張機能は `.FocusMonitor` を後ろに付けた名前)
    - **ここで決めた文字は、ステップ3で Supabase にも入力します**
 
 ### 2-4. シミュレータで動かす
@@ -351,7 +351,7 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
    ```
 
    - 1行目は、Xcode が自動で書きかえたプロジェクトファイルを元に戻すためです(`Secrets.xcconfig` は消えません)
-3. 手順1でメモした人は、`Config/Config.xcconfig` の `APP_BUNDLE_ID = ...` をその値に書きかえる
+3. 手順1でメモした人は、3つのターゲット(MyStudyApp・MyStudyWidgetExtension・MyStudyFocusMonitor)の Bundle Identifier を、それぞれの値に合わせて書きかえる(ウィジェットと拡張機能は、アプリの Bundle ID の後ろに `.MyStudyWidget`・`.FocusMonitor` を付ける)
    (Bundle ID はここで管理するようにしました。ウィジェットと App Group も自動で合わせて変わります)
 4. Supabase の **SQL Editor** で、`supabase/migrations/20261113000000_claude_plan_functions.sql` の中身を貼って **Run**
    - チャットの Claude が予定を入れ直したり消したりできるようになります(`docs/FOR_CLAUDE.md` も更新済み)
@@ -379,7 +379,7 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 | 画面・エラー | 原因 | 直し方 |
 |---|---|---|
 | `Provisioning profile ... doesn't include the com.apple.security.application-groups entitlement` | App Group がまだ登録されていない | 手順5の App Groups にチェックを入れる。それでもだめなら 🔄 を押す |
-| `Embedded binary's bundle identifier is not prefixed with the parent app's bundle identifier` | Bundle ID を Xcode の画面で直接変えた | Xcode の画面ではなく `Config/Config.xcconfig` の `APP_BUNDLE_ID` で変える。画面で変えた値は元の `$(APP_BUNDLE_ID)` に戻す |
+| `Embedded binary's bundle identifier is not prefixed with the parent app's bundle identifier` | ウィジェットや拡張機能の Bundle ID が、アプリの Bundle ID で始まっていない | アプリ `com.ryosuketakaoka.MyStudyApp`、ウィジェット `com.ryosuketakaoka.MyStudyApp.MyStudyWidget`、監視用 `com.ryosuketakaoka.MyStudyApp.FocusMonitor` にそろえる |
 | ウィジェットに「アプリを開いてログインしてください」と出る | アプリがまだデータを書き出していない、または App Group の設定ちがい | アプリを一度開く。直らなければ手順5で、2つのターゲットの App Group が同じか確認 |
 | `git pull` で `Your local changes ... would be overwritten` | Xcode が書きかえたファイルがある | 表示されたファイル名で `git checkout -- ファイル名` を実行してから、もう一度 `git pull` |
 
@@ -428,7 +428,7 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 ### TestFlight の版でも使いたくなったら
 
 1. Apple の申請フォーム(<https://developer.apple.com/contact/request/family-controls-distribution>)から、**アプリ本体**と**監視用の拡張機能**(`あなたのBundle ID.FocusMonitor`)の両方について申請する
-2. 許可が下りたら、`Config/Config.xcconfig` の `RELEASE_SCREEN_TIME_SUFFIX =` を `RELEASE_SCREEN_TIME_SUFFIX = -ScreenTime` に書きかえて、TestFlight に上げなおす
+2. 許可が下りたら教えてください。TestFlight の版にも入れるための、手作業の手順をお伝えします
 
 ---
 
