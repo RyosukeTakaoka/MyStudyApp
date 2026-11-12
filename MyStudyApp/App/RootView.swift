@@ -9,6 +9,12 @@ struct RootView: View {
             content
                 // 画面が出ているあいだ、ログイン状態の変化を受け取りつづける
                 .task { await auth.observeAuthChanges() }
+                // ログアウトしたら、端末に保存してあるデータを消す
+                .onChange(of: auth.state) { _, newState in
+                    if newState == .signedOut {
+                        SwiftDataStore.shared.deleteEverything()
+                    }
+                }
         } else {
             SetupNeededView()
         }
@@ -22,7 +28,7 @@ struct RootView: View {
         case .signedOut:
             LoginView(auth: auth)
         case .signedIn(let userId):
-            DayScreen(auth: auth, userId: userId)
+            DayScreen(auth: auth, userId: userId, local: SwiftDataStore.shared)
                 // ユーザーが変わったら、画面とデータを作り直す
                 .id(userId)
         }
