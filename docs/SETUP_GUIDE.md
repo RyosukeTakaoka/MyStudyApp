@@ -90,3 +90,50 @@ cd MyStudyApp && git checkout claude/exam-schedule-ios-app-wbcq5h
 | `Missing package product 'Supabase'` | ライブラリのダウンロードが終わっていない・失敗した | メニュー **File → Packages → Reset Package Caches** |
 | `Signing for "MyStudyApp" requires a development team` | Team が未選択 | 2-3 の手順4 |
 | 左の一覧で `Secrets.xcconfig` が赤い | まだファイルを作っていない | 2-2 の手順1。作れば黒くなります |
+
+---
+
+## ステップ3: ログイン(Sign in with Apple)
+
+ログイン方法は **Sign in with Apple** にしました。ボタンを1回押すだけでログインでき、
+メールのリンクからアプリに戻る設定(マジックリンクで必要)がいらないためです。
+
+### 3-1. Supabase で Apple ログインを有効にする
+
+1. Supabase の左メニュー **Authentication** を開く
+2. **Sign In / Providers**(または **Providers**)を開き、一覧から **Apple** を選ぶ
+3. **Enable Sign in with Apple** をオンにする
+4. **Client IDs** の欄に、ステップ2で確認した **Bundle Identifier** を入力する
+   (変えていなければ `com.ryosuketakaoka.MyStudyApp`)
+5. ほかの欄(Secret Key など)は**空のまま**で、**Save** を押す
+   - Secret Key は Web サイトからログインするときだけ必要なものです。iPhone アプリだけなら不要です
+
+### 3-2. Xcode で確認する
+
+1. ステップ2と同じ **Signing & Capabilities** タブを開く
+2. 一覧に **Sign in with Apple** が表示されていることを確認する(このリポジトリで設定済みです)
+   - 赤いエラーが出ている場合は、Team が選ばれているか確認してください
+
+### 3-3. 動かしてログインする
+
+ログインの確認は、**自分の iPhone をつないで行うのがおすすめ**です(シミュレータは Apple のログインが不安定なことがあります)。
+
+1. iPhone を USB ケーブルで Mac につなぐ
+2. 初めての場合、iPhone で **設定 → プライバシーとセキュリティ → デベロッパモード** をオンにして再起動する
+3. Xcode の上部中央で、実行先を自分の iPhone にして **▶** を押す
+4. アプリが開いたら **「Apple でサインイン」** を押して、Face ID などで認証する
+   - 「メールを非公開」を選んでも問題ありません
+5. 「ログインできました」と **user_id**(英数字とハイフンの長い文字)が表示されれば成功です
+
+Supabase の **Authentication → Users** を開くと、自分が1人だけ登録されているのが見えます。
+この行の **UID** が、Claude が予定を書き込むときに使う `user_id` です(`docs/FOR_CLAUDE.md` 参照)。
+
+### うまくいかないとき
+
+| 画面・エラー | 原因 | 直し方 |
+|---|---|---|
+| 「Supabase へのログインに失敗しました」 | Supabase の Client IDs と、Xcode の Bundle Identifier がちがう | 両方を見比べて、1文字もちがわないようにする |
+| 同上で `Unacceptable audience in id_token` と出る | 上と同じ原因 | 上と同じ |
+| 同上で `Provider (issuer "https://appleid.apple.com") is not enabled` | Supabase で Apple がオフ | 3-1 の手順3 |
+| Apple の画面が出ずにエラーになる(シミュレータ) | シミュレータが Apple アカウントにログインしていない | シミュレータの「設定」で Apple アカウントにサインインするか、実機で試す |
+| `Provisioning profile ... doesn't include the com.apple.developer.applesignin entitlement` | 署名の情報が古い | Signing & Capabilities で Team を選び直す。直らなければ **Product → Clean Build Folder** のあと再実行 |
