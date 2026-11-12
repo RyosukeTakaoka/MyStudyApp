@@ -137,3 +137,50 @@ Supabase の **Authentication → Users** を開くと、自分が1人だけ登�
 | 同上で `Provider (issuer "https://appleid.apple.com") is not enabled` | Supabase で Apple がオフ | 3-1 の手順3 |
 | Apple の画面が出ずにエラーになる(シミュレータ) | シミュレータが Apple アカウントにログインしていない | シミュレータの「設定」で Apple アカウントにサインインするか、実機で試す |
 | `Provisioning profile ... doesn't include the com.apple.developer.applesignin entitlement` | 署名の情報が古い | Signing & Capabilities で Team を選び直す。直らなければ **Product → Clean Build Folder** のあと再実行 |
+
+---
+
+## ステップ4: 今日の画面(読み込み・チェック・保存)
+
+### 4-1. テスト用の予定を入れる
+
+まだ予定が1件もないので、まず今日の分のサンプルを入れます。
+Supabase の **SQL Editor** に下の SQL を貼り付けて **Run** を押してください
+(`user_id` と今日の日付は自動で入るので、書き換える所はありません)。
+
+```sql
+-- 今日の目標
+insert into days (user_id, date, goal)
+select u.id, (now() at time zone 'Asia/Tokyo')::date, 'アプリの動作確認をする'
+from (select id from auth.users order by created_at limit 1) as u
+on conflict (user_id, date) do update set goal = excluded.goal;
+
+-- 今日の予定とやること
+insert into items (user_id, date, kind, start_time, end_time, title, subject, sort_order)
+select u.id, (now() at time zone 'Asia/Tokyo')::date, v.kind, v.start_time::time, v.end_time::time, v.title, v.subject, v.sort_order
+from (select id from auth.users order by created_at limit 1) as u,
+     (values
+        ('block', '07:00', '07:30', 'Anki 鑑定評価基準',     '鑑定理論', 10),
+        ('block', '16:30', '17:30', '民法 物権 過去問 10問', '民法',     20),
+        ('block', '19:00', '20:30', '経済 ミクロ 演習',      '経済',     30),
+        ('task',  null,    null,    '英語の宿題を提出する',  '学校',     40)
+     ) as v(kind, start_time, end_time, title, subject, sort_order);
+```
+
+> この SQL はテスト用です。ふだんの予定は、Claude が `docs/FOR_CLAUDE.md` の手順で入れます。
+
+### 4-2. 動かして確認する
+
+1. Xcode で **▶** を押してアプリを実行する
+2. 「今日の目標」「0/4 完了」「予定」「やること」が表示されることを確認する
+3. 行をタップして ✓ が付き、「1/4 完了」に変わることを確認する
+4. Supabase の **Table Editor → items** を開き、タップした行の `done` が `true`、`done_at` に日時が入っていることを確認する
+5. 画面を下に引っぱる(プル・トゥ・リフレッシュ)と、最新の状態を読み直します
+
+### うまくいかないとき
+
+| 画面・エラー | 原因 | 直し方 |
+|---|---|---|
+| 「予定がありません」のまま | サンプルを入れる前にログインしていなかった(`auth.users` が空だった) | ステップ3でログインしてから、4-1 の SQL をもう一度実行する |
+| `permission denied for table items` | ステップ1の SQL の後半(GRANT と RLS)が実行されていない | ステップ1の SQL ファイルの「4. 権限と RLS」の部分だけを SQL Editor で実行する |
+| `Could not find the table 'public.items' in the schema cache` | テーブルがまだ無い | ステップ1の手順4〜6をやり直す |

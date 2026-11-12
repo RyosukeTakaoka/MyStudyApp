@@ -1,0 +1,58 @@
+import Foundation
+import Supabase
+
+// Supabase(クラウドのデータベース)との読み書きをまとめた場所。
+// 画面のコードから SQL のような細かい話を追い出して、ここだけ見れば通信の内容がわかるようにしています。
+//
+// 「user_id が自分の行だけ」という条件は書いていません。
+// データベース側の RLS が、自動で自分の行だけに絞ってくれるためです。
+struct RemoteAPI: Sendable {
+    /// from〜to の期間の予定とタスクを読む
+    func fetchItems(from: String, to: String) async throws -> [PlanItem] {
+        try await supabase
+            .from("items")
+            .select()
+            .gte("date", value: from)   // date >= from
+            .lte("date", value: to)     // date <= to
+            .execute()
+            .value
+    }
+
+    /// from〜to の期間の「1日の情報(目標・ふりかえり)」を読む
+    func fetchDays(from: String, to: String) async throws -> [DayInfo] {
+        try await supabase
+            .from("days")
+            .select("date, goal, reflection")
+            .gte("date", value: from)
+            .lte("date", value: to)
+            .execute()
+            .value
+    }
+
+    /// チェックを付ける/外す
+    func setDone(id: UUID, done: Bool, doneAt: Date?) async throws {
+        try await supabase
+            .from("items")
+            .update(DoneUpdate(done: done, doneAt: done ? doneAt : nil), returning: .minimal)
+            .eq("id", value: id)        // where id = ...
+            .execute()
+    }
+}
+
+/// チェックの更新で送る中身。 {"done": true, "done_at": "2026-11-13T07:30:00Z"} のような JSON になる
+private struct DoneUpdate: Encodable {
+    let done: Bool
+    let doneAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case done
+        case doneAt = "done_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(done, forKey: .done)
+        // doneAt が nil のときも、省略せずに null として送る(チェックを外したら日時も消すため)
+        try container.encode(doneAt, forKey: .doneAt)
+    }
+}
