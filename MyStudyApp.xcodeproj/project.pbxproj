@@ -167,6 +167,7 @@
 				5A0000000000000000000301 /* Frameworks */,
 				5A0000000000000000000801 /* Resources */,
 				5A0000000000000000000901 /* Embed Foundation Extensions */,
+				5A0000000000000000000904 /* Remove Focus Monitor Until Approved */,
 			);
 			buildRules = (
 			);
@@ -299,6 +300,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5A0000000000000000000904 /* Remove Focus Monitor Until Approved */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Remove Focus Monitor Until Approved";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Apple の Family Controls (Distribution) の許可が下りるまでは、\n# TestFlight 用の版(Release)から、スクリーンタイムの監視用の拡張機能を取りのぞく。\n# (拡張機能が入っていると、アプリにもスクリーンタイムの許可が必要と判断され、アップロードを断られるため)\nif [ \"${CONFIGURATION}\" = \"Release\" ] && [ -z \"${RELEASE_SCREEN_TIME_SUFFIX}\" ]; then\n  rm -rf \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}/MyStudyFocusMonitor.appex\"\n  echo \"MyStudyFocusMonitor.appex を取りのぞきました(スクリーンタイムの配布許可がまだのため)\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5A0000000000000000000701 /* Sources */ = {
@@ -465,6 +488,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp-ScreenTime.entitlements";
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -495,6 +519,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp$(RELEASE_SCREEN_TIME_SUFFIX).entitlements";
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;

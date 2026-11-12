@@ -12,7 +12,7 @@ APP_BUNDLE_ID = com.ryosuketakaoka.MyStudyApp
 APP_GROUP_ID = group.$(APP_BUNDLE_ID)
 // バージョン。TestFlight にアップロードするたびに CURRENT_PROJECT_VERSION を 1 ずつ増やす
 MARKETING_VERSION = 1.1
-CURRENT_PROJECT_VERSION = 1
+CURRENT_PROJECT_VERSION = 2
 
 // ---- スクリーンタイム(集中モード)----
 // Xcode から ▶ で入れる版(Debug)では、いつも使えます。
