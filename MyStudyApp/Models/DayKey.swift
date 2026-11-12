@@ -71,6 +71,15 @@ enum DayKey {
         }
     }
 
+    /// 次に日付が変わる瞬間(今夜の 0:00)までの秒数
+    static func secondsUntilNextDay(now: Date = Date(), calendar: Calendar = gregorian()) -> TimeInterval {
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
+            return 24 * 60 * 60
+        }
+        return startOfTomorrow.timeIntervalSince(now)
+    }
+
     /// 今の時刻を「0時からの分数」で返す(16:30 → 990)
     static func minutesOfDay(_ date: Date, calendar: Calendar = gregorian()) -> Int {
         let c = calendar.dateComponents([.hour, .minute], from: date)

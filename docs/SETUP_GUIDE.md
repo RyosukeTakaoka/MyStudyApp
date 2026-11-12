@@ -12,6 +12,7 @@
 | 5 | 日付の切り替え・「今 → 次」・ふりかえり | iPhone |
 | 6 | オフラインキャッシュと同期 | iPhone |
 | 7 | TestFlight(内部テスト)で iPhone に入れる | App Store Connect・Xcode |
+| 困ったら | Xcode でエラーが出たとき | Xcode |
 | おまけ | Claude から予定を書きこめるようにする | claude.ai |
 
 必要なもの: Mac(Xcode 16 以上)、Apple Developer アカウント、iPhone(iOS 17 以上)
@@ -319,6 +320,29 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 | `The bundle version must be higher than the previously uploaded version` | ビルド番号が前と同じ | Build の数字を1つ増やす |
 | `Missing required icon file` | アイコン画像が無い | `MyStudyApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png` が消えていないか確認 |
 | TestFlight アプリに何も出ない | テスターに追加されていない、またはビルドが処理中 | 7-3 を確認。Apple アカウントが同じかも確認 |
+
+---
+
+## Xcode でエラーが出たとき(ビルドエラー)
+
+このアプリのコードは、Mac のない環境(Linux)で書いて検査しました。
+通信・同期・日付計算などのロジックは実際にコンパイルしてテスト済みですが、
+**画面(SwiftUI)と端末内保存(SwiftData)の部分は、本物の Xcode ではまだ一度もビルドしていません。**
+最初のビルドで赤いエラーが出る可能性があります。そのときは次のようにしてください。
+
+1. Xcode の左の一覧の上にある **⚠ のタブ(Issue navigator)** を開く
+2. 赤い ● の行をクリックすると、エラーの文と、問題のファイル・行が表示される
+3. **エラーの文をそのままコピー**して、ファイル名と行番号といっしょに Claude に伝える
+   - 例: 「`DayScreen.swift` の 54 行目で `Cannot find 'xxx' in scope` と出ました」
+
+> 赤いエラーが1つだけでも、ビルドは最後まで進みません。
+> いちばん上のエラーから順に直すのがコツです(1つ直すと、ほかも消えることがよくあります)。
+
+実機で動かしたら、次の点も見てもらえると助かります。
+
+- 画面をたてにスクロールできるか(左右スワイプの判定と同時に動くようにしているため)。
+  もしスクロールしにくい場合は、`MyStudyApp/Day/DayScreen.swift` の
+  `.simultaneousGesture(daySwipeGesture)` の1行を消すと、矢印ボタンだけで日付を切りかえる動きになります
 
 ---
 

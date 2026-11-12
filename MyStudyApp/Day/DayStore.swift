@@ -51,7 +51,7 @@ final class DayStore {
     private var syncTask: Task<Void, Never>?
     /// 同期の最中に「もう一度同期して」と頼まれたか
     private var syncRequestedAgain = false
-    /// 画面が閉じられたあと(ログアウト後)は、同期の結果を保存しない
+    /// 画面が閉じられているあいだ(ログアウト後など)は、同期の結果を保存しない
     private var isStopped = false
 
     init(userId: UUID, local: LocalStore, api: PlanAPI = RemoteAPI(), now: @escaping () -> Date = Date.init) {
@@ -79,9 +79,12 @@ final class DayStore {
     /// 下書きが、保存済みの内容から変わっているか
     var isReflectionDirty: Bool { reflectionDraft != savedReflection }
 
+    /// 表示中の日を、この起動中にサーバーから読みこめたか
+    var hasPulledSelectedDate: Bool { pulledDates.contains(selectedDate) }
+
     /// 端末にデータが無く、最初の読みこみを待っている状態か(「読み込み中」表示に使う)
     var isWaitingForFirstLoad: Bool {
-        items.isEmpty && day == nil && !pulledDates.contains(selectedDate) && syncProblem == nil
+        items.isEmpty && day == nil && !hasPulledSelectedDate && syncProblem == nil
     }
 
     // MARK: - 日付の切り替え
@@ -169,9 +172,10 @@ final class DayStore {
         }
     }
 
-    /// 画面が閉じられたときに呼ぶ(ログアウト後に、同期の結果が保存されないようにする)
-    func stop() {
-        isStopped = true
+    /// 画面が出た(true)/閉じられた(false)ときに呼ぶ。
+    /// 閉じられているあいだは同期を止める(ログアウト後に、同期の結果が端末に保存されないようにするため)
+    func setActive(_ active: Bool) {
+        isStopped = !active
     }
 
     /// 同期は必ず1つずつ行う。すでに実行中なら、新しく始めずに「終わったらもう1回」と予約する。
@@ -199,15 +203,24 @@ final class DayStore {
         isSyncing = true
         defer { isSyncing = false }
 
+        var firstError: Error?
         do {
             try await pushPendingChanges()
-            try await pullLatest()
-            syncProblem = nil
         } catch {
-            guard !isStopped else { return }
-            syncProblem = Self.describe(error, isOnline: isOnline)
+            firstError = error
         }
+        // 送るのに失敗しても、原因が「電波がない」以外なら、受け取りは試す
+        // (新しい予定は表示できるようにするため。未送信の変更は消えずに残る)
+        if firstError == nil || !ErrorText.isNetworkError(firstError!) {
+            do {
+                try await pullLatest()
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+
         guard !isStopped else { return }
+        syncProblem = firstError.flatMap { Self.describe($0, isOnline: isOnline) }
         reloadFromLocal()
     }
 
@@ -281,11 +294,15 @@ final class DayStore {
         pendingCount = local.pendingItems().count + local.pendingDays().count
     }
 
-    /// エラーを、画面に出す形に分類する
-    private static func describe(_ error: Error, isOnline: Bool) -> SyncProblem {
-        if !isOnline || error is URLError || (error as NSError).domain == NSURLErrorDomain {
+    /// エラーを、画面に出す形に分類する(お知らせするほどでもないときは nil)
+    private static func describe(_ error: Error, isOnline: Bool) -> SyncProblem? {
+        // 通信が途中で取り消されただけなら、問題として出さない
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
+            return nil
+        }
+        if !isOnline || ErrorText.isNetworkError(error) {
             return .offline
         }
-        return .failed(error.localizedDescription)
+        return .failed(ErrorText.message(for: error))
     }
 }

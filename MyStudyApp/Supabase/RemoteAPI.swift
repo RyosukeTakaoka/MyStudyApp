@@ -64,7 +64,7 @@ private struct ReflectionUpsert: Encodable {
     }
 }
 
-/// チェックの更新で送る中身。 {"done": true, "done_at": "2026-11-13T07:30:00Z"} のような JSON になる
+/// チェックの更新で送る中身。 {"done": true, "done_at": "2026-11-13T07:30:00.000Z"} のような JSON になる
 private struct DoneUpdate: Encodable {
     let done: Bool
     let doneAt: Date?
@@ -77,7 +77,10 @@ private struct DoneUpdate: Encodable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(done, forKey: .done)
+        // 日時は、末尾に「Z」(= 世界標準時)を付けた文字にして送る。
+        // タイムゾーンの印が無いと、データベースの設定しだいで時刻がずれて保存されるおそれがあるため。
         // doneAt が nil のときも、省略せずに null として送る(チェックを外したら日時も消すため)
-        try container.encode(doneAt, forKey: .doneAt)
+        let text = doneAt?.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+        try container.encode(text, forKey: .doneAt)
     }
 }

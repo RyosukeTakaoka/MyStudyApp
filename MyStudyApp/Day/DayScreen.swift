@@ -56,8 +56,18 @@ struct DayScreen: View {
             .simultaneousGesture(daySwipeGesture)
             // 画面が出たときに同期する(Claude が書きこんだ新しい予定がすぐ出るように)
             .task {
+                network.start()
                 store.setOnline(network.isOnline)
                 store.requestSync()
+            }
+            // 夜の 0:00 をまたいだら、「今日」を新しい日付に進める
+            // (id: に今日の日付を渡しているので、日付が変わるたびに次の 0:00 を待ち直す)
+            .task(id: store.today) {
+                let seconds = DayKey.secondsUntilNextDay()
+                try? await Task.sleep(for: .seconds(seconds + 1))
+                if !Task.isCancelled {
+                    store.refreshToday()
+                }
             }
             // アプリが前面に戻った/裏に回ったとき
             .onChange(of: scenePhase) { _, phase in
@@ -77,9 +87,10 @@ struct DayScreen: View {
             .onChange(of: network.isOnline) { _, online in
                 store.setOnline(online)
             }
-            // 画面が閉じられたら(ログアウト)、同期を止める
-            .onDisappear { store.stop() }
         }
+        // この画面が閉じられたら(ログアウト)、同期を止める
+        .onAppear { store.setActive(true) }
+        .onDisappear { store.setActive(false) }
     }
 
     // MARK: - 上のバー(日付の切り替えとメニュー)
@@ -234,6 +245,15 @@ struct DayScreen: View {
                     ProgressView("読み込み中…")
                     Spacer()
                 }
+            }
+        } else if store.items.isEmpty && !store.hasPulledSelectedDate {
+            // 端末にデータが無く、サーバーからも読めていない(オフラインなど)
+            Section {
+                ContentUnavailableView(
+                    "まだ読みこめていません",
+                    systemImage: "icloud.slash",
+                    description: Text("電波がつながると、この日の予定を読みこみます。")
+                )
             }
         } else if store.items.isEmpty {
             Section {

@@ -29,6 +29,26 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
 }
 
 extension PlanItem {
+    /// JSON から読みこむときの手順。
+    /// ほとんどは自動と同じだが、done_at だけは「読めなければ nil」にしている。
+    /// (日時の形が想定とちがっても、予定の一覧そのものは表示できるようにするため)
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        date = try c.decode(String.self, forKey: .date)
+        kind = try c.decode(String.self, forKey: .kind)
+        startTime = try c.decodeIfPresent(String.self, forKey: .startTime)
+        endTime = try c.decodeIfPresent(String.self, forKey: .endTime)
+        title = try c.decode(String.self, forKey: .title)
+        subject = try c.decodeIfPresent(String.self, forKey: .subject) ?? "その他"
+        sortOrder = try c.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? "claude"
+        done = try c.decodeIfPresent(Bool.self, forKey: .done) ?? false
+        doneAt = (try? c.decodeIfPresent(Date.self, forKey: .doneAt)) ?? nil
+        actualMinutes = try c.decodeIfPresent(Int.self, forKey: .actualMinutes)
+        note = try c.decodeIfPresent(String.self, forKey: .note)
+    }
+
     /// 時間つきの予定か
     var isBlock: Bool { kind == "block" }
 

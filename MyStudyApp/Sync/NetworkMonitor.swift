@@ -11,8 +11,12 @@ final class NetworkMonitor {
     private(set) var isOnline = true
 
     private let monitor = NWPathMonitor()
+    private var hasStarted = false
 
-    init() {
+    /// 見張りを始める(2回呼んでも、始めるのは1回だけ)
+    func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         // つながり方が変わるたびに、ここが呼ばれる
         monitor.pathUpdateHandler = { [weak self] path in
             let online = path.status == .satisfied

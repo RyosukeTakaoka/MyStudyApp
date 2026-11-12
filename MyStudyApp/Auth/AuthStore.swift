@@ -92,7 +92,7 @@ final class AuthStore {
                 Supabase へのログインに失敗しました。
                 Supabase の Apple 設定(Client IDs にこのアプリの Bundle ID が入っているか)を確認してください。
 
-                \(error.localizedDescription)
+                \(ErrorText.message(for: error))
                 """
             }
         }
@@ -101,11 +101,16 @@ final class AuthStore {
     // MARK: - ログアウト
 
     func signOut() async {
+        errorMessage = nil
         do {
-            // .local = この端末だけログアウトする(電波がなくてもログアウトできる)
+            // .local = この端末だけログアウトする
             try await supabase.auth.signOut(scope: .local)
         } catch {
-            errorMessage = "ログアウトに失敗しました。\n\(error.localizedDescription)"
+            // ライブラリは「端末からログイン情報を消す → サーバーに知らせる」の順に動く。
+            // 電波がないと後半だけ失敗するが、端末のログアウトは済んでいるので、エラーとして出さない。
+            if supabase.auth.currentSession != nil {
+                errorMessage = "ログアウトに失敗しました。\n\(ErrorText.message(for: error))"
+            }
         }
     }
 
