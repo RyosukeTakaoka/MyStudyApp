@@ -55,6 +55,50 @@ struct RemoteAPI: Sendable {
     }
 }
 
+// MARK: - 週次・期間の計画
+
+extension RemoteAPI: PlanBoardAPI {
+    /// end_date が from 以降の、期間の計画
+    func fetchTermPlans(endingAfter from: String) async throws -> [TermPlan] {
+        try await supabase
+            .from("term_plans")
+            .select("id, title, start_date, end_date, overview_title, stats, overview_note, phases")
+            .gte("end_date", value: from)
+            .order("start_date")
+            .execute()
+            .value
+    }
+
+    func fetchWeeks(from: String, to: String) async throws -> [WeekPlan] {
+        try await supabase
+            .from("weeks")
+            .select("week_start, label, color, subtitle, events, buffer")
+            .gte("week_start", value: from)
+            .lte("week_start", value: to)
+            .execute()
+            .value
+    }
+
+    func fetchWeekGoals(from: String, to: String) async throws -> [WeekGoal] {
+        try await supabase
+            .from("week_goals")
+            .select("id, week_start, group_name, title, detail, target_count, done_boxes, sort_order")
+            .gte("week_start", value: from)
+            .lte("week_start", value: to)
+            .execute()
+            .value
+    }
+
+    /// やることの「できた箱」を保存する
+    func updateGoalBoxes(id: UUID, doneBoxes: [Int]) async throws {
+        try await supabase
+            .from("week_goals")
+            .update(["done_boxes": doneBoxes], returning: .minimal)
+            .eq("id", value: id)
+            .execute()
+    }
+}
+
 /// ふりかえりの保存で送る中身。goal をふくめないので、Claude が書いた目標は消えない
 private struct ReflectionUpsert: Encodable {
     let userId: UUID

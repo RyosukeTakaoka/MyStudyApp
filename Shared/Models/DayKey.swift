@@ -61,6 +61,21 @@ enum DayKey {
         return "\(c.month ?? 0)月\(c.day ?? 0)日(\(weekday))"
     }
 
+    /// 短い表示(例: 11/13(金))
+    static func shortText(_ key: String, calendar: Calendar = gregorian()) -> String {
+        guard let date = date(from: key, calendar: calendar) else { return key }
+        let c = calendar.dateComponents([.month, .day, .weekday], from: date)
+        let weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+        return "\(c.month ?? 0)/\(c.day ?? 0)(\(weekdays[((c.weekday ?? 1) - 1) % 7]))"
+    }
+
+    /// その日がふくまれる週の月曜日
+    static func mondayOfWeek(_ key: String, calendar: Calendar = gregorian()) -> String {
+        guard let date = date(from: key, calendar: calendar) else { return key }
+        let weekday = calendar.component(.weekday, from: date)   // 1 = 日曜, 2 = 月曜
+        return adding(-((weekday + 5) % 7), to: key, calendar: calendar)
+    }
+
     /// 今日から見た呼び方(今日・明日・昨日)。それ以外は nil
     static func relativeLabel(_ key: String, today: String, calendar: Calendar = gregorian()) -> String? {
         switch key {

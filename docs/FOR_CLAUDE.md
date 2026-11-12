@@ -202,3 +202,66 @@ where user_id = 'ここにuser_idを入れる'
 | `violates check constraint "items_kind_check"` | `kind` が `'block'` `'task'` 以外 | どちらかに直す |
 | `null value in column "user_id"` | `user_id` を指定していない | 2章の方法で調べて指定する |
 | `violates foreign key constraint` | `user_id` の値がまちがっている | 2章の SQL で正しい `id` を確認する |
+
+---
+
+## 6. 週次・月次(期間)の計画を書き込む
+
+アプリの「週・月」タブに表示される計画です。日ごとの予定(`items`)とは別のテーブルです。
+**書き込みは必ず下の関数を `select` で呼んでください**(DELETE 文は使わない)。
+
+### テーブル
+
+| テーブル | 中身 |
+|---|---|
+| `term_plans` | 期間の計画。タイトル・期間・「そもそも終わる?」の数字カード(`stats`)・「月の流れ」(`phases`) |
+| `weeks` | 1週間ごとの情報。`week_start` は**その週の月曜日**。ラベル・色・行事(`events`)・バッファのメモ |
+| `week_goals` | その週にやること。`target_count` = 箱の数(例: 数学12問なら12、1回だけのことなら1) |
+
+- 色(`color`)に使える値: `blue` / `yellow` / `red` / `purple` / `green` / `gray`
+- `week_goals.done_boxes`(できた箱の番号)と `done_count`(できた数)は**アプリで押して記録するので、書き込まない**
+
+### 期間の計画を入れる(同じ title があれば上書き)
+
+```sql
+select public.replace_term_plan(
+  'ここにuser_idを入れる',
+  '期末までの週次計画',          -- タイトル
+  '2026-11-12', '2026-12-06',     -- 期間
+  'そもそも終わる?(11/12〜11/29の学校課題)',
+  '[
+    {"label":"必要な時間","value":"約24時間","detail":"数学59問・読書8枚・提出物4つ"},
+    {"label":"使える時間","value":"約28時間","detail":"平日22-23時×11日・土日午前2h×6日・11/23祝5h"},
+    {"label":"余り","value":"約4時間","detail":"英語・化学Ankiは移動中で全部やる前提"}
+  ]'::jsonb,
+  'ほかの教科のテスト勉強は「前日に詰め込む」ので、この計算には入れていません。',
+  '[
+    {"range":"〜11/15","color":"blue","text":"通常期。学校課題の数学を毎日3問ずつ始める。"},
+    {"range":"11/16〜22","color":"yellow","text":"ちょっと忙しい。基準Ankiの新規は1日300字に減らす。"},
+    {"range":"11/23〜29","color":"red","text":"ガチテストモード。鑑定士は最低ライン50分だけ。"}
+  ]'::jsonb
+);
+-- 消すとき: select public.remove_term_plan('ここにuser_idを入れる', '期末までの週次計画');
+```
+
+### 1週間の計画を入れる/入れ直す
+
+```sql
+select * from public.replace_week_plan(
+  'ここにuser_idを入れる',
+  '2026-11-09',            -- その週の月曜日(月曜以外はエラー)
+  '通常期', 'blue',         -- ラベルと色
+  '今日11/12(木)から',      -- 小さい説明(不要なら null)
+  '["11/13(金) 会計③ 配信", "11/14(土) 演習基礎答練① 16:00-19:00"]'::jsonb,  -- 行事
+  'バッファ:11/15(日)の22-23時。',  -- バッファのメモ(不要なら null)
+  '[
+    {"group_name":"学校","title":"数学(B・II)","detail":"木金土日に3問ずつ","target_count":12,"sort_order":10},
+    {"group_name":"学校","title":"化学 アルデヒド実験考察(30分)","detail":"11/15(日)22:00締切 → 11/14(土)に","target_count":1,"sort_order":20},
+    {"group_name":"鑑定士","title":"基準Anki 新規600字","detail":"毎日","target_count":4,"sort_order":30}
+  ]'::jsonb
+);
+```
+
+- 入れ直しても、**同じ `group_name` と `title` のやることは、できた箱を引きつぎます**(箱を減らしたときは、はみ出た分だけ消えます)
+- だから、やることの名前は週の途中で変えないでください(変えると進み具合が0に戻ります)
+- `group_name` はグループの見出しになります(例: 学校 / 鑑定士)。`sort_order` の小さい順に並びます

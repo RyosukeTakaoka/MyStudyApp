@@ -17,6 +17,7 @@ struct RootView: View {
                         LiveActivityController.endAll()
                         StudyTimer().cancel()
                         ScreenTimeController.resetAll()
+                        PlanBoardStore.clearSaved()
                         Task { await NotificationScheduler.removeAll() }
                     }
                 }
@@ -33,7 +34,7 @@ struct RootView: View {
         case .signedOut:
             LoginView(auth: auth)
         case .signedIn(let userId):
-            DayScreen(auth: auth, userId: userId, local: SwiftDataStore.shared)
+            MainTabView(auth: auth, userId: userId)
                 // ユーザーが変わったら、画面とデータを作り直す
                 .id(userId)
         }
