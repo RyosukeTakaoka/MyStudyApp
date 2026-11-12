@@ -29,11 +29,14 @@ struct RemoteAPI: Sendable {
             .value
     }
 
-    /// チェックを付ける/外す
-    func setDone(id: UUID, done: Bool, doneAt: Date?) async throws {
+    /// チェック(done / done_at)と勉強時間の実績(actual_minutes)を保存する
+    func updateProgress(id: UUID, done: Bool, doneAt: Date?, actualMinutes: Int?) async throws {
         try await supabase
             .from("items")
-            .update(DoneUpdate(done: done, doneAt: done ? doneAt : nil), returning: .minimal)
+            .update(
+                ProgressUpdate(done: done, doneAt: done ? doneAt : nil, actualMinutes: actualMinutes),
+                returning: .minimal
+            )
             .eq("id", value: id)        // where id = ...
             .execute()
     }
@@ -64,14 +67,17 @@ private struct ReflectionUpsert: Encodable {
     }
 }
 
-/// チェックの更新で送る中身。 {"done": true, "done_at": "2026-11-13T07:30:00.000Z"} のような JSON になる
-private struct DoneUpdate: Encodable {
+/// チェックの更新で送る中身。
+/// {"done": true, "done_at": "2026-11-13T07:30:00.000Z", "actual_minutes": 25} のような JSON になる
+private struct ProgressUpdate: Encodable {
     let done: Bool
     let doneAt: Date?
+    let actualMinutes: Int?
 
     enum CodingKeys: String, CodingKey {
         case done
         case doneAt = "done_at"
+        case actualMinutes = "actual_minutes"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -82,5 +88,6 @@ private struct DoneUpdate: Encodable {
         // doneAt が nil のときも、省略せずに null として送る(チェックを外したら日時も消すため)
         let text = doneAt?.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         try container.encode(text, forKey: .doneAt)
+        try container.encode(actualMinutes, forKey: .actualMinutes)
     }
 }

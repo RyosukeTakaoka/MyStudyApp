@@ -3,6 +3,10 @@ import SwiftUI
 // 画面のいちばん上に出す「今 → 次」のカード。
 struct NowNextCard: View {
     let items: [PlanItem]
+    /// タイマーが動いているか(動いていれば開始ボタンを出さない)
+    var isTimerRunning = false
+    /// 「タイマー開始」が押されたとき
+    var onStartTimer: ((PlanItem) -> Void)? = nil
 
     var body: some View {
         // TimelineView は、決まったタイミングで中身を描き直してくれる部品。
@@ -31,6 +35,16 @@ struct NowNextCard: View {
                         Text(detail(for: current, prefix: "あと", minutes: state.minutesLeft))
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
+                        if !isTimerRunning, !current.done, let onStartTimer {
+                            Button {
+                                onStartTimer(current)
+                            } label: {
+                                Label("タイマー開始", systemImage: "play.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .padding(.top, 4)
+                        }
                     } else {
                         Text("予定なし")
                             .font(.title2.bold())

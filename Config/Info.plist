@@ -7,6 +7,12 @@
 	<string>$(SUPABASE_HOST)</string>
 	<key>SupabaseKey</key>
 	<string>$(SUPABASE_KEY)</string>
+	<!-- アプリとウィジェットが共有するフォルダ(App Group)の名前 -->
+	<key>AppGroupID</key>
+	<string>$(APP_GROUP_ID)</string>
+	<!-- ライブアクティビティ(ロック画面・ダイナミックアイランドの表示)を使う -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<!-- 「特別な暗号は使っていません」という申告。TestFlight に上げるたびに質問されるのを省く -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>

@@ -5,7 +5,7 @@ import Foundation
 protocol PlanAPI: Sendable {
     func fetchItems(from: String, to: String) async throws -> [PlanItem]
     func fetchDays(from: String, to: String) async throws -> [DayInfo]
-    func setDone(id: UUID, done: Bool, doneAt: Date?) async throws
+    func updateProgress(id: UUID, done: Bool, doneAt: Date?, actualMinutes: Int?) async throws
     func saveReflection(userId: UUID, date: String, reflection: String) async throws
 }
 

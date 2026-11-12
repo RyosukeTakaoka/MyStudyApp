@@ -13,6 +13,10 @@ struct RootView: View {
                 .onChange(of: auth.state) { _, newState in
                     if newState == .signedOut {
                         SwiftDataStore.shared.deleteEverything()
+                        WidgetBridge.clear()
+                        LiveActivityController.endAll()
+                        StudyTimer().cancel()
+                        Task { await NotificationScheduler.removeAll() }
                     }
                 }
         } else {

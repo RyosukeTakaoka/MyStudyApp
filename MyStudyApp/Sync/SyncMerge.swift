@@ -26,10 +26,11 @@ enum SyncMerge {
 
         for serverItem in server {
             if let mine = localById[serverItem.id], mine.needsSync {
-                // 未送信のチェックがある行: タイトルや時刻はサーバーに合わせ、チェックだけ端末側を残す
+                // 未送信の変更がある行: タイトルや時刻はサーバーに合わせ、チェックと実績は端末側を残す
                 var merged = serverItem
                 merged.done = mine.item.done
                 merged.doneAt = mine.item.doneAt
+                merged.actualMinutes = mine.item.actualMinutes
                 changes.save.append(LocalItem(item: merged, needsSync: true))
             } else {
                 changes.save.append(LocalItem(item: serverItem, needsSync: false))

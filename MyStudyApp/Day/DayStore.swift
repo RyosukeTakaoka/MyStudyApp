@@ -34,6 +34,17 @@ final class DayStore {
     private(set) var syncProblem: SyncProblem?
     /// まだサーバーに送れていない変更の数
     private(set) var pendingCount = 0
+    /// 最後に同期が成功した時刻(通知の予約しなおしなどのきっかけに使う)
+    private(set) var lastSyncSucceededAt: Date?
+
+    /// ウィジェット用のデータが変わったときに呼ばれる(アプリ側で共有フォルダに書き出す)
+    var onSnapshotChanged: ((WidgetSnapshot) -> Void)? {
+        didSet {
+            lastPublishedSnapshot = nil
+            publishSnapshotIfChanged()
+        }
+    }
+    private var lastPublishedSnapshot: WidgetSnapshot?
     /// ふりかえりの入力欄の中身(保存前の下書き)
     var reflectionDraft = ""
 
@@ -114,6 +125,45 @@ final class DayStore {
         if wasShowingToday {
             select(newToday)
         }
+        publishSnapshotIfChanged()
+    }
+
+    // MARK: - 今日の予定(タイマー・通知・ウィジェット用)
+
+    /// 今日から days 日後までの予定(端末に保存してある分)
+    func upcomingItems(days: Int) -> [PlanItem] {
+        let dates = DayKey.keys(from: today, to: DayKey.adding(days, to: today))
+        return PlanItem.sortedForDisplay(local.items(on: dates).map(\.item))
+    }
+
+    /// ウィジェットに渡すデータ(今日と明日)
+    func makeSnapshot() -> WidgetSnapshot {
+        var days: [String: WidgetSnapshot.Day] = [:]
+        for key in [today, DayKey.adding(1, to: today)] {
+            days[key] = WidgetSnapshot.Day(
+                goal: local.days(on: [key]).first?.info.goal,
+                items: PlanItem.sortedForDisplay(local.items(on: [key]).map(\.item))
+            )
+        }
+        return WidgetSnapshot(days: days)
+    }
+
+    private func publishSnapshotIfChanged() {
+        guard let onSnapshotChanged, !isStopped else { return }
+        let snapshot = makeSnapshot()
+        guard snapshot != lastPublishedSnapshot else { return }
+        lastPublishedSnapshot = snapshot
+        onSnapshotChanged(snapshot)
+    }
+
+    /// 期間を指定して予定を読む(カレンダー用)。オフラインなら端末に保存してある分を返す
+    func items(from: String, to: String) async -> [PlanItem] {
+        if let fetched = try? await api.fetchItems(from: from, to: to) {
+            // まだ送っていない変更は、端末側を優先して見せる
+            let pending = Dictionary(local.pendingItems().map { ($0.item.id, $0.item) }, uniquingKeysWith: { a, _ in a })
+            return fetched.map { pending[$0.id] ?? $0 }
+        }
+        return local.items(on: DayKey.keys(from: from, to: to)).map(\.item)
     }
 
     // MARK: - チェック
@@ -128,6 +178,37 @@ final class DayStore {
 
         reloadFromLocal()                   // 2. 画面を更新
         requestSync()                       // 3. 裏でサーバーへ送る
+    }
+
+    /// ウィジェットでチェックされた記録を取りこむ(アプリを開いたときに呼ぶ)
+    func applyWidgetToggles(_ toggles: [PendingToggle]) {
+        guard !toggles.isEmpty else { return }
+        for toggle in toggles {
+            guard var current = local.item(id: toggle.itemId) else { continue }
+            current.item.done = toggle.done
+            current.item.doneAt = toggle.done ? (toggle.doneAt ?? now()) : nil
+            current.needsSync = true
+            local.save(items: [current])
+        }
+        reloadFromLocal()
+        requestSync()
+    }
+
+    /// タイマーで測った勉強時間を記録する(markDone = true なら、あわせてチェックも付ける)
+    func recordStudy(itemId: UUID, minutes: Int, markDone: Bool) {
+        guard var current = local.item(id: itemId) else { return }
+        guard minutes > 0 || (markDone && !current.item.done) else { return }
+        if minutes > 0 {
+            current.item.actualMinutes = (current.item.actualMinutes ?? 0) + minutes
+        }
+        if markDone && !current.item.done {
+            current.item.done = true
+            current.item.doneAt = now()
+        }
+        current.needsSync = true
+        local.save(items: [current])
+        reloadFromLocal()
+        requestSync()
     }
 
     // MARK: - ふりかえり
@@ -221,19 +302,26 @@ final class DayStore {
 
         guard !isStopped else { return }
         syncProblem = firstError.flatMap { Self.describe($0, isOnline: isOnline) }
+        if firstError == nil { lastSyncSucceededAt = now() }
         reloadFromLocal()
     }
 
     /// 送る: 端末にたまっている「未送信」の変更を、サーバーへ送る
     private func pushPendingChanges() async throws {
         for pending in local.pendingItems() {
-            try await api.setDone(id: pending.item.id, done: pending.item.done, doneAt: pending.item.doneAt)
+            try await api.updateProgress(
+                id: pending.item.id,
+                done: pending.item.done,
+                doneAt: pending.item.doneAt,
+                actualMinutes: pending.item.actualMinutes
+            )
             guard !isStopped else { return }
             // 送っているあいだに、もう一度タップされていないときだけ「送信済み」にする
             if var latest = local.item(id: pending.item.id),
                latest.needsSync,
                latest.item.done == pending.item.done,
-               latest.item.doneAt == pending.item.doneAt {
+               latest.item.doneAt == pending.item.doneAt,
+               latest.item.actualMinutes == pending.item.actualMinutes {
                 latest.needsSync = false
                 local.save(items: [latest])
             }
@@ -292,6 +380,7 @@ final class DayStore {
             reflectionDraft = savedReflection
         }
         pendingCount = local.pendingItems().count + local.pendingDays().count
+        publishSnapshotIfChanged()
     }
 
     /// エラーを、画面に出す形に分類する(お知らせするほどでもないときは nil)

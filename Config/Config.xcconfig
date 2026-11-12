@@ -5,6 +5,15 @@
 // となりの Secrets.xcconfig(Git に入らないファイル)に書きます。
 // =====================================================================
 
+// ---- アプリの識別名とバージョン(アプリとウィジェットで共通)----
+// Bundle Identifier を変えるときは、ここだけを書きかえる(ウィジェットと App Group も自動で合わせて変わる)
+APP_BUNDLE_ID = com.ryosuketakaoka.MyStudyApp
+// アプリとウィジェットが共有するフォルダ(App Group)の名前
+APP_GROUP_ID = group.$(APP_BUNDLE_ID)
+// バージョン。TestFlight にアップロードするたびに CURRENT_PROJECT_VERSION を 1 ずつ増やす
+MARKETING_VERSION = 1.1
+CURRENT_PROJECT_VERSION = 1
+
 // まず「空」を入れておく。Secrets.xcconfig がまだ無くてもビルドが通るようにするため。
 SUPABASE_HOST =
 SUPABASE_KEY =

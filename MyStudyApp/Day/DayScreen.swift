@@ -10,6 +10,12 @@ struct DayScreen: View {
     @FocusState private var isReflectionFocused: Bool
     /// 電波がつながっているかの見張り
     @State private var network = NetworkMonitor()
+    /// 勉強時間のタイマー
+    @State private var timer = StudyTimer()
+    @State private var showsCalendar = false
+    /// 設定(端末に保存される)
+    @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = true
+    @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
     /// アプリが前面にあるか・裏に回ったか
     @Environment(\.scenePhase) private var scenePhase
 
@@ -23,11 +29,16 @@ struct DayScreen: View {
         NavigationStack {
             List {
                 syncStatusSection
+                timerSection
 
                 // 「今 → 次」は、今日を表示しているときだけ出す
                 if store.isToday && !store.blocks.isEmpty {
                     Section {
-                        NowNextCard(items: store.items)
+                        NowNextCard(
+                            items: store.items,
+                            isTimerRunning: timer.running != nil,
+                            onStartTimer: { startTimer(for: $0, isAuto: false) }
+                        )
                     }
                     .listRowBackground(Color.accentColor.opacity(0.12))
                 }
@@ -57,8 +68,44 @@ struct DayScreen: View {
             // 画面が出たときに同期する(Claude が書きこんだ新しい予定がすぐ出るように)
             .task {
                 network.start()
+                // ウィジェット用のデータが変わったら、共有フォルダに書き出す
+                store.onSnapshotChanged = { WidgetBridge.publish($0) }
+                store.applyWidgetToggles(SharedStore.takePendingToggles())
                 store.setOnline(network.isOnline)
                 store.requestSync()
+                restoreLiveActivity()
+                checkAutoTimer()
+            }
+            // 画面が出ているあいだ、30秒ごとに自動タイマーの開始・終了を確かめる
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(30))
+                    checkAutoTimer()
+                }
+            }
+            // 同期が終わるたびに、通知を予約しなおす(Claude が予定を変えても通知が合うように)
+            .task(id: store.lastSyncSucceededAt) {
+                await rescheduleReminders()
+                checkAutoTimer()
+            }
+            .onChange(of: remindersEnabled) { _, enabled in
+                Task {
+                    if enabled, !(await NotificationScheduler.requestPermission()) {
+                        remindersEnabled = false   // 許可されなかったらオフに戻す
+                    }
+                    await rescheduleReminders()
+                }
+            }
+            .onChange(of: autoTimerEnabled) { _, _ in
+                checkAutoTimer()
+            }
+            .sheet(isPresented: $showsCalendar) {
+                CalendarScreen(
+                    today: store.today,
+                    selectedDate: store.selectedDate,
+                    loadItems: { from, to in await store.items(from: from, to: to) },
+                    onSelect: { store.select($0) }
+                )
             }
             // 夜の 0:00 をまたいだら、「今日」を新しい日付に進める
             // (id: に今日の日付を渡しているので、日付が変わるたびに次の 0:00 を待ち直す)
@@ -73,9 +120,11 @@ struct DayScreen: View {
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .active:
-                    // 開き直したら、日付の変化を確認して同期する
+                    // 開き直したら、ウィジェットでのチェックを取りこみ、日付の変化を確認して同期する
+                    store.applyWidgetToggles(SharedStore.takePendingToggles())
                     store.refreshToday()
                     store.requestSync()
+                    checkAutoTimer()
                 case .inactive, .background:
                     // 閉じる前に、書きかけのふりかえりを保存する
                     store.saveReflectionIfNeeded()
@@ -133,7 +182,21 @@ struct DayScreen: View {
             }
             .accessibilityLabel("次の日")
 
+            Button {
+                showsCalendar = true
+            } label: {
+                Image(systemName: "calendar")
+            }
+            .accessibilityLabel("カレンダー")
+
             Menu {
+                Toggle(isOn: $autoTimerEnabled) {
+                    Label("自動タイマー", systemImage: "timer")
+                }
+                Toggle(isOn: $remindersEnabled) {
+                    Label("開始時刻に通知", systemImage: "bell")
+                }
+                Divider()
                 if !store.isToday {
                     Button("今日に戻る", systemImage: "calendar") {
                         store.goToToday()
@@ -168,6 +231,125 @@ struct DayScreen: View {
                     store.goToPreviousDay()  // 右へスワイプ → 前日
                 }
             }
+    }
+
+    // MARK: - タイマー
+
+    @ViewBuilder
+    private var timerSection: some View {
+        if let running = timer.running {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label(running.isAuto ? "勉強中(自動)" : "勉強中", systemImage: "timer")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        SubjectTag(subject: running.subject)
+                    }
+                    Text(running.title)
+                        .font(.title3.bold())
+                    // style: .timer は、始めた時刻からの経過時間を自動で数えて表示する
+                    Text(running.startedAt, style: .timer)
+                        .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
+                    if let end = running.plannedEnd, end > running.startedAt {
+                        ProgressView(timerInterval: running.startedAt...end, countsDown: false) {
+                            EmptyView()
+                        } currentValueLabel: {
+                            EmptyView()
+                        }
+                    }
+                    HStack(spacing: 12) {
+                        Button {
+                            stopTimer(markDone: true)
+                        } label: {
+                            Label("完了", systemImage: "checkmark")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            stopTimer(markDone: false)
+                        } label: {
+                            Label("中断", systemImage: "pause")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    /// タイマーを始める(ライブアクティビティも出す)
+    private func startTimer(for item: PlanItem, isAuto: Bool) {
+        let plannedEnd = item.endMinutes.flatMap { DayKey.date(dayKey: item.date, minutes: $0) }
+        let running = RunningTimer(
+            itemId: item.id,
+            title: item.title,
+            subject: item.subject,
+            startedAt: Date(),
+            plannedEnd: plannedEnd,
+            isAuto: isAuto
+        )
+        timer.start(running)
+        showLiveActivity(for: running)
+    }
+
+    /// タイマーを止めて、勉強時間を記録する
+    private func stopTimer(markDone: Bool) {
+        guard let result = timer.stop(now: Date()) else { return }
+        LiveActivityController.endAll()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
+    }
+
+    /// 自動タイマー: 予定の時間になったら始め、終了時刻を過ぎたら止める
+    private func checkAutoTimer() {
+        // 自動で始めたタイマーは、設定に関係なく終了時刻で止める
+        if timer.shouldAutoStop(now: Date()) {
+            stopTimer(markDone: false)
+        }
+        guard autoTimerEnabled, scenePhase == .active else { return }
+        let todayItems = store.upcomingItems(days: 0)
+        if let item = timer.autoStartCandidate(
+            items: todayItems,
+            dayKey: store.today,
+            nowMinutes: DayKey.minutesOfDay(Date())
+        ) {
+            timer.markAutoStarted(item, dayKey: store.today)
+            startTimer(for: item, isAuto: true)
+        }
+    }
+
+    /// ライブアクティビティを出す(次の予定も一緒に表示する)
+    private func showLiveActivity(for running: RunningTimer) {
+        let todayItems = store.upcomingItems(days: 0)
+        let startedMinutes = DayKey.minutesOfDay(running.startedAt)
+        let next = NowNext.compute(items: todayItems, nowMinutes: startedMinutes).next
+        let nextStart = next.flatMap { item in
+            item.startMinutes.flatMap { DayKey.date(dayKey: item.date, minutes: $0) }
+        }
+        LiveActivityController.start(running, nextTitle: next?.title, nextStart: nextStart)
+    }
+
+    /// アプリを開き直したとき、タイマーが動いているのにライブアクティビティが消えていたら出し直す
+    private func restoreLiveActivity() {
+        if let running = timer.running, !LiveActivityController.isShowing {
+            showLiveActivity(for: running)
+        }
+    }
+
+    /// 通知を予約しなおす(オフなら全部消す)
+    private func rescheduleReminders() async {
+        if remindersEnabled {
+            await NotificationScheduler.reschedule(
+                ReminderPlan.make(items: store.upcomingItems(days: 7), now: Date())
+            )
+        } else {
+            await NotificationScheduler.removeAll()
+        }
     }
 
     // MARK: - 同期の状態(オフラインやエラーのお知らせ)
@@ -267,18 +449,26 @@ struct DayScreen: View {
             if !store.blocks.isEmpty {
                 Section("予定") {
                     ForEach(store.blocks) { item in
-                        ItemRow(item: item) { toggle(item) }
+                        itemRow(item)
                     }
                 }
             }
             if !store.tasks.isEmpty {
                 Section("やること") {
                     ForEach(store.tasks) { item in
-                        ItemRow(item: item) { toggle(item) }
+                        itemRow(item)
                     }
                 }
             }
         }
+    }
+
+    private func itemRow(_ item: PlanItem) -> some View {
+        ItemRow(
+            item: item,
+            onToggle: { toggle(item) },
+            onStartTimer: timer.running == nil ? { startTimer(for: item, isAuto: false) } : nil
+        )
     }
 
     private func toggle(_ item: PlanItem) {

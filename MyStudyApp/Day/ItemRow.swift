@@ -4,6 +4,8 @@ import SwiftUI
 struct ItemRow: View {
     let item: PlanItem
     let onToggle: () -> Void
+    /// 長押しメニューの「タイマーを開始」(nil ならメニューを出さない)
+    var onStartTimer: (() -> Void)? = nil
 
     var body: some View {
         Button(action: onToggle) {
@@ -27,6 +29,11 @@ struct ItemRow: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+                    if let minutes = item.actualMinutes, minutes > 0 {
+                        Label("実績 \(NowNext.durationText(minutes))", systemImage: "timer")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -36,6 +43,12 @@ struct ItemRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // 長押しで出るメニュー
+        .contextMenu {
+            if let onStartTimer {
+                Button("タイマーを開始", systemImage: "timer", action: onStartTimer)
+            }
+        }
         // VoiceOver(読み上げ)用の説明
         .accessibilityLabel("\(item.timeRangeText ?? "") \(item.title) \(item.subject)")
         .accessibilityValue(item.done ? "完了" : "未完了")

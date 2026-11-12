@@ -12,6 +12,7 @@
 | 5 | 日付の切り替え・「今 → 次」・ふりかえり | iPhone |
 | 6 | オフラインキャッシュと同期 | iPhone |
 | 7 | TestFlight(内部テスト)で iPhone に入れる | App Store Connect・Xcode |
+| 1.1 | ウィジェット・ライブアクティビティ・自動タイマー・カレンダー | Xcode・iPhone |
 | 困ったら | Xcode でエラーが出たとき | Xcode |
 | おまけ | Claude から予定を書きこめるようにする | claude.ai |
 
@@ -82,7 +83,7 @@ cd MyStudyApp && git checkout claude/exam-schedule-ios-app-wbcq5h
 3. 左上の青いアイコン **MyStudyApp**(いちばん上)をクリック → 中央の **TARGETS → MyStudyApp** → 上のタブ **Signing & Capabilities** を開く
 4. **Team** で自分の Apple Developer のチームを選ぶ
 5. **Bundle Identifier** を確認する。最初は `com.ryosuketakaoka.MyStudyApp` になっています
-   - 世界で1つだけの名前である必要があります。エラーが出たら `com.自分の名前.MyStudyApp` のように変えてください
+   - 世界で1つだけの名前である必要があります。エラーが出たら、`Config/Config.xcconfig` の `APP_BUNDLE_ID` を `com.自分の名前.MyStudyApp` のように変えてください(Xcode の画面の欄では変えないでください。ウィジェットと合わなくなります)
    - **ここで決めた文字は、ステップ3で Supabase にも入力します**
 
 ### 2-4. シミュレータで動かす
@@ -308,7 +309,7 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 - **アップロードが必要なのは、次の2つのときだけです**
   1. アプリの機能(コード)を変えたとき
   2. **90日の期限が近づいたとき。** TestFlight のビルドは、アップロードから **90日** で使えなくなります。期限の前に、もう一度 7-2 をやってください(TestFlight アプリに残り日数が出ます)
-- **2回目からのアップロードでは、ビルド番号を増やします。** 青い **MyStudyApp**(いちばん上)→ **TARGETS → MyStudyApp** → **General** タブ → **Identity** の **Build** を `2`、`3`…と増やします。同じ番号だとアップロードで断られます
+- **2回目からのアップロードでは、ビルド番号を増やします。** `Config/Config.xcconfig` の `CURRENT_PROJECT_VERSION` を `2`、`3`…と増やします。同じ番号だとアップロードで断られます
 - **Supabase の無料プランは、1週間まったく使わないとプロジェクトが一時停止します。** 毎日アプリを開いていれば止まりません。止まった場合は、Supabase の画面で「Restore」を押すと戻ります
 
 ### うまくいかないとき
@@ -320,6 +321,66 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 | `The bundle version must be higher than the previously uploaded version` | ビルド番号が前と同じ | Build の数字を1つ増やす |
 | `Missing required icon file` | アイコン画像が無い | `MyStudyApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png` が消えていないか確認 |
 | TestFlight アプリに何も出ない | テスターに追加されていない、またはビルドが処理中 | 7-3 を確認。Apple アカウントが同じかも確認 |
+
+---
+
+## バージョン 1.1: ウィジェット・ライブアクティビティ・自動タイマー・カレンダー
+
+### 追加された機能
+
+| 機能 | 内容 |
+|---|---|
+| ホーム画面ウィジェット(小・中・大) | 小: 今 → 次 / 中: 今 → 次 + 残りの予定 / 大: 目標・進み具合・予定の一覧。**中と大は、ウィジェットのままチェックできます** |
+| ロック画面ウィジェット(丸・長方形・1行) | 丸: 進み具合のメーター / 長方形: 今の予定と残り時間・次の予定 / 1行: 今の予定 |
+| 勉強タイマー | 「今 → 次」の **タイマー開始**、または予定を **長押し → タイマーを開始**。止めると実績時間(actual_minutes)が記録されます |
+| 自動タイマー | 予定の時間にアプリを開くと、自動でタイマーが始まり、終了時刻で自動で止まって記録されます(右上の … メニューでオン・オフ) |
+| ライブアクティビティ | タイマー中は、ロック画面とダイナミックアイランドに経過時間と進み具合が出ます |
+| 開始時刻の通知 | 予定の開始時刻に通知します(… メニューでオン。初回は許可を求められます) |
+| カレンダー | 右上の 📅 から。日ごとの達成率と、月の科目別の勉強時間を表示。日付を押すとその日に移動します |
+
+### あなたがやること
+
+1. **Bundle Identifier を変えていた人だけ:** Xcode で変えた値をメモしておく
+2. ターミナルで最新のコードを取りこむ
+
+   ```bash
+   cd ~/Documents/MyStudyApp
+   git checkout -- MyStudyApp.xcodeproj
+   git pull
+   ```
+
+   - 1行目は、Xcode が自動で書きかえたプロジェクトファイルを元に戻すためです(`Secrets.xcconfig` は消えません)
+3. 手順1でメモした人は、`Config/Config.xcconfig` の `APP_BUNDLE_ID = ...` をその値に書きかえる
+   (Bundle ID はここで管理するようにしました。ウィジェットと App Group も自動で合わせて変わります)
+4. Supabase の **SQL Editor** で、`supabase/migrations/20261113000000_claude_plan_functions.sql` の中身を貼って **Run**
+   - チャットの Claude が予定を入れ直したり消したりできるようになります(`docs/FOR_CLAUDE.md` も更新済み)
+5. Xcode でプロジェクトを開き、左上の青い **MyStudyApp** → **TARGETS** で、次の2つそれぞれについて **Signing & Capabilities** を開く
+   - **MyStudyApp**(アプリ)
+   - **MyStudyWidgetExtension**(ウィジェット。今回増えました)
+
+   それぞれで:
+   - **Team** を選ぶ
+   - **App Groups** の欄に `group.(あなたのBundle ID)` が表示され、チェックが入っていることを確認する。赤い文字やチェックなしなら、チェックを入れる/右の 🔄 を押す
+6. **▶** で iPhone に入れる
+7. ホーム画面を長押し → 左上の **+** → **MyStudy** を探して、好きな大きさのウィジェットを追加する
+   - ロック画面は、ロック画面を長押し → **カスタマイズ** → **ロック画面** → 時計の下の枠から追加
+8. TestFlight に上げるときは、今回からバージョンが **1.1** になります。2回目以降は `Config/Config.xcconfig` の `CURRENT_PROJECT_VERSION` を 2、3…と増やしてください(Xcode の General タブではなく、こちらを書きかえます)
+
+### 知っておくとよいこと
+
+- **ウィジェットの内容は、アプリが最後に同期したときのものです。** Claude が予定を書きかえたら、一度アプリを開くとウィジェットにも反映されます
+- **ウィジェットでのチェックは、次にアプリを開いたときにサーバーへ送られます**
+- 自動タイマーは、iPhone の決まりで「アプリを開いているとき」に始まります。アプリを閉じている間にタイマーを自動で始めることはできません。開始時刻の通知をオンにしておき、通知を押してアプリを開くと、自動で始まります
+- ライブアクティビティが出ないときは、iPhone の **設定 → MyStudy → ライブアクティビティ** がオンか確認してください
+
+### うまくいかないとき
+
+| 画面・エラー | 原因 | 直し方 |
+|---|---|---|
+| `Provisioning profile ... doesn't include the com.apple.security.application-groups entitlement` | App Group がまだ登録されていない | 手順5の App Groups にチェックを入れる。それでもだめなら 🔄 を押す |
+| `Embedded binary's bundle identifier is not prefixed with the parent app's bundle identifier` | Bundle ID を Xcode の画面で直接変えた | Xcode の画面ではなく `Config/Config.xcconfig` の `APP_BUNDLE_ID` で変える。画面で変えた値は元の `$(APP_BUNDLE_ID)` に戻す |
+| ウィジェットに「アプリを開いてログインしてください」と出る | アプリがまだデータを書き出していない、または App Group の設定ちがい | アプリを一度開く。直らなければ手順5で、2つのターゲットの App Group が同じか確認 |
+| `git pull` で `Your local changes ... would be overwritten` | Xcode が書きかえたファイルがある | 表示されたファイル名で `git checkout -- ファイル名` を実行してから、もう一度 `git pull` |
 
 ---
 

@@ -71,6 +71,12 @@ enum DayKey {
         }
     }
 
+    /// 日付キーと「0時からの分数」から、その瞬間の Date を作る("2026-11-13" + 990 → 11/13 16:30)
+    static func date(dayKey: String, minutes: Int, calendar: Calendar = gregorian()) -> Date? {
+        guard let noon = date(from: dayKey, calendar: calendar) else { return nil }
+        return calendar.startOfDay(for: noon).addingTimeInterval(TimeInterval(minutes * 60))
+    }
+
     /// 次に日付が変わる瞬間(今夜の 0:00)までの秒数
     static func secondsUntilNextDay(now: Date = Date(), calendar: Calendar = gregorian()) -> TimeInterval {
         let startOfToday = calendar.startOfDay(for: now)

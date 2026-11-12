@@ -45,7 +45,7 @@
 | `source` | text | `'claude'` = Claude が入れた / `'app'` = アプリで手入力。省略すると `'claude'` | **省略する**(`'claude'` になる) |
 | `done` | boolean | チェック済みか(ユーザーがアプリで付ける) | **触らない** |
 | `done_at` | timestamptz | チェックした日時(自動) | **触らない** |
-| `actual_minutes` | integer | 実際にかかった分数(ユーザーが入れる) | **触らない** |
+| `actual_minutes` | integer | 実際にかかった分数(アプリのタイマーが記録する) | **触らない** |
 | `note` | text | メモ。予定の補足を書いてもよい(例「p.30〜45」) | 任意 |
 | `created_at` / `updated_at` | timestamptz | 自動で入る | 触らない |
 
@@ -129,6 +129,33 @@ values
 
 commit;
 ```
+
+### いちばんおすすめ: 関数で入れ直す(コネクタから使うときはこちら)
+
+チャットのコネクタから `DELETE` 文を実行すると、確認ボタンが出ずに失敗することがあります。
+そのため、**入れ直しと削除は、次の2つの関数を `select` で呼んでください。**
+関数の中で「Claude が入れた・未チェック・今日以降の行だけを消す」というルールが守られるので、安全です。
+
+```sql
+-- 1日の予定をまるごと入れ直す(目標も更新。目標を変えないときは第3引数を null に)
+select * from public.replace_plan(
+  'ここにuser_idを入れる',
+  '2026-11-13',
+  '鑑定評価基準 総論を1周する',
+  '[
+    {"kind":"block","start_time":"16:30","end_time":"17:30","title":"Anki 鑑定評価基準","subject":"鑑定理論","sort_order":10},
+    {"kind":"block","start_time":"19:00","end_time":"20:30","title":"民法 物権 過去問 10問","subject":"民法","sort_order":20},
+    {"kind":"task","title":"英語の宿題を提出する","subject":"学校","sort_order":30}
+  ]'::jsonb
+);
+-- 結果: deleted_count(消した数)と inserted_count(入れた数)が返る
+
+-- id を指定して消す(消せるのは Claude が入れた・未チェック・今日以降の行だけ)
+select public.remove_plan_items('ここにuser_idを入れる', array['消したい行のid']::uuid[]);
+```
+
+- `p_items` の各行で使えるキー: `kind`(必須)、`title`(必須)、`start_time`・`end_time`(block は必須)、`subject`、`sort_order`、`note`
+- 1行でもまちがいがあると、関数全体が取り消されて何も変わりません(エラー文を読んで直してから、もう一度呼ぶ)
 
 ### 予定を1件だけ追加したいとき
 

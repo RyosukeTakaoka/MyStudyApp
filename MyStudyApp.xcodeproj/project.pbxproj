@@ -8,7 +8,32 @@
 
 /* Begin PBXBuildFile section */
 		5A0000000000000000000A01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5A0000000000000000000F02 /* Supabase */; };
+		5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000109 /* MyStudyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5A0000000000000000000B01 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5A0000000000000000000601 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A0000000000000000000502;
+			remoteInfo = MyStudyWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5A0000000000000000000901 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		5A0000000000000000000101 /* MyStudyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyStudyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -17,12 +42,25 @@
 		5A0000000000000000000104 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		5A0000000000000000000105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5A0000000000000000000106 /* MyStudyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyStudyApp.entitlements; sourceTree = "<group>"; };
+		5A0000000000000000000107 /* MyStudyWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MyStudyWidget-Info.plist"; sourceTree = "<group>"; };
+		5A0000000000000000000108 /* MyStudyWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyStudyWidget.entitlements; sourceTree = "<group>"; };
+		5A0000000000000000000109 /* MyStudyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyStudyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5A0000000000000000000201 /* MyStudyApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MyStudyApp;
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000202 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000203 /* MyStudyWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MyStudyWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -36,6 +74,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A0000000000000000000302 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -43,6 +88,8 @@
 			isa = PBXGroup;
 			children = (
 				5A0000000000000000000201 /* MyStudyApp */,
+				5A0000000000000000000202 /* Shared */,
+				5A0000000000000000000203 /* MyStudyWidget */,
 				5A0000000000000000000403 /* Config */,
 				5A0000000000000000000402 /* Products */,
 			);
@@ -52,6 +99,7 @@
 			isa = PBXGroup;
 			children = (
 				5A0000000000000000000101 /* MyStudyApp.app */,
+				5A0000000000000000000109 /* MyStudyWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,6 +112,8 @@
 				5A0000000000000000000104 /* Secrets.xcconfig */,
 				5A0000000000000000000105 /* Info.plist */,
 				5A0000000000000000000106 /* MyStudyApp.entitlements */,
+				5A0000000000000000000107 /* MyStudyWidget-Info.plist */,
+				5A0000000000000000000108 /* MyStudyWidget.entitlements */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -78,13 +128,16 @@
 				5A0000000000000000000701 /* Sources */,
 				5A0000000000000000000301 /* Frameworks */,
 				5A0000000000000000000801 /* Resources */,
+				5A0000000000000000000901 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5A0000000000000000000B02 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5A0000000000000000000201 /* MyStudyApp */,
+				5A0000000000000000000202 /* Shared */,
 			);
 			name = MyStudyApp;
 			packageProductDependencies = (
@@ -93,6 +146,27 @@
 			productName = MyStudyApp;
 			productReference = 5A0000000000000000000101 /* MyStudyApp.app */;
 			productType = "com.apple.product-type.application";
+		};
+		5A0000000000000000000502 /* MyStudyWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A0000000000000000000D03 /* Build configuration list for PBXNativeTarget "MyStudyWidgetExtension" */;
+			buildPhases = (
+				5A0000000000000000000702 /* Sources */,
+				5A0000000000000000000302 /* Frameworks */,
+				5A0000000000000000000802 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A0000000000000000000203 /* MyStudyWidget */,
+				5A0000000000000000000202 /* Shared */,
+			);
+			name = MyStudyWidgetExtension;
+			productName = MyStudyWidgetExtension;
+			productReference = 5A0000000000000000000109 /* MyStudyWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -105,6 +179,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					5A0000000000000000000501 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					5A0000000000000000000502 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -128,12 +205,20 @@
 			projectRoot = "";
 			targets = (
 				5A0000000000000000000501 /* MyStudyApp */,
+				5A0000000000000000000502 /* MyStudyWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5A0000000000000000000801 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000802 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -150,7 +235,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A0000000000000000000702 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5A0000000000000000000B02 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A0000000000000000000502 /* MyStudyWidgetExtension */;
+			targetProxy = 5A0000000000000000000B01 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5A0000000000000000000C01 /* Debug */ = {
@@ -280,7 +380,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -295,8 +394,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -312,7 +410,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -327,9 +424,58 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ryosuketakaoka.MyStudyApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		5A0000000000000000000C05 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/MyStudyWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MyStudyWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = MyStudy;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).MyStudyWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000C06 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/MyStudyWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MyStudyWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = MyStudy;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).MyStudyWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -353,6 +499,15 @@
 			buildConfigurations = (
 				5A0000000000000000000C03 /* Debug */,
 				5A0000000000000000000C04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A0000000000000000000D03 /* Build configuration list for PBXNativeTarget "MyStudyWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000C05 /* Debug */,
+				5A0000000000000000000C06 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
