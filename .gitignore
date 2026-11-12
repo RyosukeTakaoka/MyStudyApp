@@ -1,0 +1,30 @@
+# ===== 秘密情報(絶対に Git に入れないもの)=====
+# Supabase の URL やキーを書く設定ファイル(ステップ2で作ります)
+Secrets.xcconfig
+*.secret.xcconfig
+.env
+.env.*
+
+# ===== macOS =====
+.DS_Store
+
+# ===== Xcode =====
+# ビルドで自動的に作られるファイル
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ===== Swift Package Manager =====
+.build/
+.swiftpm/
+
+# ===== Supabase CLI(使う場合のみ作られる)=====
+supabase/.temp/
+supabase/.branches/
