@@ -37,6 +37,31 @@ struct RemoteAPI: Sendable {
             .eq("id", value: id)        // where id = ...
             .execute()
     }
+
+    /// ふりかえりを保存する。その日の行がまだ無ければ作り、あれば reflection だけを書きかえる
+    /// (こういう「無ければ追加、あれば更新」を upsert と呼びます)
+    func saveReflection(userId: UUID, date: String, reflection: String) async throws {
+        try await supabase
+            .from("days")
+            .upsert(
+                ReflectionUpsert(userId: userId, date: date, reflection: reflection),
+                onConflict: "user_id,date",   // 「同じ人の同じ日」がすでにあれば更新にする
+                returning: .minimal
+            )
+            .execute()
+    }
+}
+
+/// ふりかえりの保存で送る中身。goal をふくめないので、Claude が書いた目標は消えない
+private struct ReflectionUpsert: Encodable {
+    let userId: UUID
+    let date: String
+    let reflection: String
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case date, reflection
+    }
 }
 
 /// チェックの更新で送る中身。 {"done": true, "done_at": "2026-11-13T07:30:00Z"} のような JSON になる

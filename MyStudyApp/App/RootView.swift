@@ -21,8 +21,10 @@ struct RootView: View {
             ProgressView()
         case .signedOut:
             LoginView(auth: auth)
-        case .signedIn:
-            DayScreen(auth: auth)
+        case .signedIn(let userId):
+            DayScreen(auth: auth, userId: userId)
+                // ユーザーが変わったら、画面とデータを作り直す
+                .id(userId)
         }
     }
 }
