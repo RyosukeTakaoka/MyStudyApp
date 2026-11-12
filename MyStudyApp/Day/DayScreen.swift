@@ -18,6 +18,10 @@ struct DayScreen: View {
     @State private var showsFocusSettings = false
     @AppStorage(AppSettings.focusDuringTimerKey) private var focusDuringTimer = true
     @AppStorage(AppSettings.focusAutoBlocksKey) private var focusAutoBlocks = false
+    /// iPhone のカレンダー連携
+    @AppStorage(AppSettings.calendarSyncKey) private var calendarSyncEnabled = false
+    /// 表示中の日の、ほかのカレンダーの予定
+    @State private var calendarEvents: [CalendarEventInfo] = []
     /// 設定(端末に保存される)
     @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = true
     @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
@@ -51,6 +55,7 @@ struct DayScreen: View {
 
                 goalSection
                 progressSection
+                calendarEventsSection
                 itemSections
                 reflectionSection
             }
@@ -95,7 +100,22 @@ struct DayScreen: View {
             .task(id: store.lastSyncSucceededAt) {
                 await rescheduleReminders()
                 rescheduleFocus()
+                exportToCalendar()
                 checkAutoTimer()
+            }
+            // 表示する日が変わったら、その日のカレンダーの予定を読む
+            .task(id: "\(store.selectedDate)|\(calendarSyncEnabled)") {
+                loadCalendarEvents()
+            }
+            .onChange(of: calendarSyncEnabled) { _, enabled in
+                Task {
+                    if enabled, !(await CalendarSync.requestAccess()) {
+                        calendarSyncEnabled = false   // 許可されなかったらオフに戻す
+                        return
+                    }
+                    exportToCalendar()
+                    loadCalendarEvents()
+                }
             }
             .onChange(of: focusAutoBlocks) { _, _ in
                 rescheduleFocus()
@@ -103,6 +123,7 @@ struct DayScreen: View {
             // 予定をチェックしたら、その予定の自動の集中モードを外す
             .onChange(of: store.doneCount) { _, _ in
                 rescheduleFocus()
+                exportToCalendar()   // チェックを付けたら、カレンダーの題名にも ✓ を付ける
             }
             .sheet(isPresented: $showsFocusSettings, onDismiss: rescheduleFocus) {
                 FocusSettingsView(screenTime: screenTime)
@@ -144,6 +165,7 @@ struct DayScreen: View {
                     store.refreshToday()
                     store.requestSync()
                     screenTime.refresh()
+                    loadCalendarEvents()
                     checkAutoTimer()
                 case .inactive, .background:
                     // 閉じる前に、書きかけのふりかえりを保存する
@@ -215,6 +237,9 @@ struct DayScreen: View {
                 }
                 Toggle(isOn: $remindersEnabled) {
                     Label("開始時刻に通知", systemImage: "bell")
+                }
+                Toggle(isOn: $calendarSyncEnabled) {
+                    Label("カレンダーと連携", systemImage: "calendar.badge.clock")
                 }
                 Button("集中モード(スクリーンタイム)…", systemImage: "lock.shield") {
                     showsFocusSettings = true
@@ -368,6 +393,46 @@ struct DayScreen: View {
         }
     }
 
+    // MARK: - カレンダー連携
+
+    /// 今日から7日分の予定ブロックを「MyStudy」カレンダーに書き出す
+    private func exportToCalendar() {
+        guard calendarSyncEnabled else { return }
+        CalendarSync.export(
+            items: store.upcomingItems(days: 7),
+            from: store.today,
+            to: DayKey.adding(7, to: store.today)
+        )
+    }
+
+    private func loadCalendarEvents() {
+        calendarEvents = calendarSyncEnabled ? CalendarSync.events(on: store.selectedDate) : []
+    }
+
+    /// ほかのカレンダー(学校・Google など)の予定
+    @ViewBuilder
+    private var calendarEventsSection: some View {
+        if !calendarEvents.isEmpty {
+            Section("カレンダーの予定") {
+                ForEach(calendarEvents) { event in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(event.isAllDay
+                             ? "終日"
+                             : "\(TimeOfDay.text(DayKey.minutesOfDay(event.start)))〜\(TimeOfDay.text(DayKey.minutesOfDay(event.end)))")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(event.title)
+                            Text(event.calendarTitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// 予定ブロックの自動の集中モードを登録しなおす
     private func rescheduleFocus() {
         screenTime.rescheduleBlocks(items: store.upcomingItems(days: 1), enabled: focusAutoBlocks)
@@ -516,8 +581,19 @@ struct DayScreen: View {
         ItemRow(
             item: item,
             onToggle: { toggle(item) },
-            onStartTimer: timer.running == nil ? { startTimer(for: item, isAuto: false) } : nil
+            onLongPress: { startTimerByLongPress(item) },
+            isTimerRunning: timer.running?.itemId == item.id
         )
+    }
+
+    /// 長押しでタイマー開始。ほかの予定のタイマーが動いていたら、それを記録して止めてから始める
+    private func startTimerByLongPress(_ item: PlanItem) {
+        if let running = timer.running {
+            if running.itemId == item.id { return }   // 同じ予定なら何もしない
+            stopTimer(markDone: false)
+        }
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        startTimer(for: item, isAuto: false)
     }
 
     private func toggle(_ item: PlanItem) {

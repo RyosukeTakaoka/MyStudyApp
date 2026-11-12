@@ -10,4 +10,6 @@ enum AppSettings {
     static let focusDuringTimerKey = "settings.focusDuringTimer"
     /// 予定ブロックの時間は自動で集中モードにするか
     static let focusAutoBlocksKey = "settings.focusAutoBlocks"
+    /// iPhone のカレンダーと連携するか
+    static let calendarSyncKey = "settings.calendarSync"
 }
