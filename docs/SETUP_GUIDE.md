@@ -3,8 +3,18 @@
 このアプリを自分の iPhone で動かすまでの手順を、ステップごとにまとめています。
 上から順番に進めてください。
 
-- [ステップ1: Supabase プロジェクトとテーブルを作る](#ステップ1-supabase-プロジェクトとテーブルを作る)
-- [ステップ2: Xcode でプロジェクトを開いて動かす](#ステップ2-xcode-でプロジェクトを開いて動かす)
+| ステップ | やること | 場所 |
+|---|---|---|
+| 1 | Supabase プロジェクトとテーブルを作る | Supabase |
+| 2 | Xcode でプロジェクトを開いて動かす | Mac |
+| 3 | ログイン(Sign in with Apple) | Supabase・Xcode・iPhone |
+| 4 | 今日の画面(読み込み・チェック・保存) | Supabase・iPhone |
+| 5 | 日付の切り替え・「今 → 次」・ふりかえり | iPhone |
+| 6 | オフラインキャッシュと同期 | iPhone |
+| 7 | TestFlight(内部テスト)で iPhone に入れる | App Store Connect・Xcode |
+| おまけ | Claude から予定を書きこめるようにする | claude.ai |
+
+必要なもの: Mac(Xcode 16 以上)、Apple Developer アカウント、iPhone(iOS 17 以上)
 
 ---
 
@@ -244,3 +254,103 @@ from (select id from auth.users order by created_at limit 1) as u,
 
 - **ログアウトすると、iPhone の中の保存データは消えます。** 未送信の変更があるときは、ログアウトの確認画面に件数が出ます
 - 予定の内容(タイトルや時刻)は、いつもサーバー側が正しいものとして上書きされます。iPhone 側が優先されるのは「未送信のチェック」と「未送信のふりかえり」だけです
+
+---
+
+## ステップ7: TestFlight(内部テスト)で iPhone に入れる
+
+Xcode から直接入れたアプリは、数日〜1年で使えなくなったり、Mac につなぎ直す必要があったりします。
+**TestFlight の「内部テスト」**を使うと、App Store の審査なしで、自分の iPhone にふつうのアプリのように入れられます。
+
+### 7-1. App Store Connect にアプリの「箱」を作る(最初の1回だけ)
+
+1. ブラウザで <https://appstoreconnect.apple.com> を開き、Apple Developer のアカウントでサインインする
+2. **アプリ(Apps)** を開き、左上の **＋ → 新規アプリ(New App)** を押す
+3. 次のように入力して **作成** を押す
+   - **プラットフォーム**: iOS
+   - **名前**: `MyStudy 予定` など(App Store 全体でほかの人と重ならない名前が必要です。重なったら少し変えてください。公開はしないので、何でもかまいません)
+   - **プライマリ言語**: 日本語
+   - **バンドル ID**: ステップ2で決めた Bundle Identifier を選ぶ
+     - 一覧に出てこないときは、先に Xcode で一度実機に実行してください(Xcode が自動で登録します)
+   - **SKU**: `mystudyapp001` など(自分用の管理番号。何でもよい)
+   - **ユーザアクセス**: アクセス制限なし
+
+### 7-2. Xcode からアップロードする
+
+1. Xcode の上部中央の実行先を **Any iOS Device (arm64)** にする(シミュレータのままだと、次のメニューが押せません)
+2. メニュー **Product → Archive** を選ぶ(ビルドに数分かかります)
+3. 終わると **Organizer** という画面が開き、今作ったアーカイブが選ばれている
+4. 右の **Distribute App** を押す
+5. **TestFlight Internal Only** を選んで **Distribute** を押す
+   - 「TestFlight Internal Only」は、内部テスト専用でアップロードする方法です。まちがって App Store に公開されることがありません
+6. 「Upload Successful」のような表示が出るまで待つ
+
+### 7-3. 内部テスターに自分を追加する(最初の1回だけ)
+
+1. App Store Connect で作ったアプリを開き、上のタブ **TestFlight** を開く
+2. アップロードしたビルドが「処理中」と表示される。**5〜30分ほど**待つと、処理が終わる(メールでも通知が来ます)
+3. 左メニュー **内部テスト(Internal Testing)** の横の **＋** を押し、グループを作る(名前は `自分` など)
+   - 「自動配信を有効にする」にチェックを入れておくと、次からはアップロードするだけで届きます
+4. 作ったグループを開き、**テスター** の **＋** から自分を追加する
+5. **ビルド** の **＋** から、アップロードしたビルドを追加する
+
+### 7-4. iPhone に入れる
+
+1. iPhone の App Store で **TestFlight** アプリをインストールする
+2. TestFlight を開き、Apple Developer と同じ Apple アカウントでサインインする
+3. アプリが一覧に出るので、**インストール** を押す
+4. ホーム画面にアイコンができたら完成です。開いて「Apple でサインイン」してください
+
+### 知っておくとよいこと
+
+- **予定を変えるだけなら、アップロードは不要です。** 予定は Supabase のデータなので、Claude が書きこめばアプリにすぐ出ます。これが、このアプリのいちばん大事な設計です
+- **アップロードが必要なのは、次の2つのときだけです**
+  1. アプリの機能(コード)を変えたとき
+  2. **90日の期限が近づいたとき。** TestFlight のビルドは、アップロードから **90日** で使えなくなります。期限の前に、もう一度 7-2 をやってください(TestFlight アプリに残り日数が出ます)
+- **2回目からのアップロードでは、ビルド番号を増やします。** 青い **MyStudyApp**(いちばん上)→ **TARGETS → MyStudyApp** → **General** タブ → **Identity** の **Build** を `2`、`3`…と増やします。同じ番号だとアップロードで断られます
+- **Supabase の無料プランは、1週間まったく使わないとプロジェクトが一時停止します。** 毎日アプリを開いていれば止まりません。止まった場合は、Supabase の画面で「Restore」を押すと戻ります
+
+### うまくいかないとき
+
+| 画面・エラー | 原因 | 直し方 |
+|---|---|---|
+| **Product → Archive** が灰色で押せない | 実行先がシミュレータになっている | 7-2 の手順1 |
+| `No profiles for '...' were found` | 署名の設定ができていない | Signing & Capabilities で Team を選び、「Automatically manage signing」にチェック |
+| `The bundle version must be higher than the previously uploaded version` | ビルド番号が前と同じ | Build の数字を1つ増やす |
+| `Missing required icon file` | アイコン画像が無い | `MyStudyApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png` が消えていないか確認 |
+| TestFlight アプリに何も出ない | テスターに追加されていない、またはビルドが処理中 | 7-3 を確認。Apple アカウントが同じかも確認 |
+
+---
+
+## おまけ: Claude(別のチャット)から予定を書きこめるようにする
+
+方法は2つあります。まず (B) で試して、慣れたら (A) にするのがおすすめです。
+
+### (B) かんたんな方法: SQL を貼り付ける
+
+1. Claude のチャットに `docs/FOR_CLAUDE.md` の中身を貼り付けて、「明日の予定を入れる SQL を書いて」とお願いする
+2. Claude が書いた SQL を、Supabase の **SQL Editor** に貼り付けて **Run** を押す
+
+毎回貼るのが手間なら、claude.ai の **プロジェクト** を作って、`FOR_CLAUDE.md` をプロジェクトの知識(ナレッジ)に入れておくと、そのプロジェクトのチャットではいつも読んでくれます。
+自分の `user_id` もいっしょに書いておくと、毎回調べずに済みます。
+
+### (A) 自動の方法: Supabase のコネクタをつなぐ
+
+Supabase は、Claude から直接 SQL を実行できる「MCP サーバー」を公開しています。
+
+1. Supabase の **Project Settings → General** で **Project ID**(英小文字の並び)を調べる
+2. claude.ai の **設定 → コネクタ** で「カスタムコネクタを追加」を選び、次の URL を入れる(`あなたのProjectID` を置きかえる)
+
+   ```
+   https://mcp.supabase.com/mcp?project_ref=あなたのProjectID
+   ```
+
+3. Supabase のログイン画面が出るので、許可する
+
+> **注意**: このコネクタは、RLS を通らない強い権限でデータベースを操作できます。
+> - URL に `project_ref=...` を必ず付けて、**このプロジェクトだけ**に限定してください
+> - Claude が SQL を実行する前に出る確認は、内容を読んでから許可してください
+> - チェック済みの行を消す操作は、データベース側の安全装置(トリガー)で止まるようにしてあります
+>
+> claude.ai の画面の名前や場所は変わることがあります。見つからないときは、Supabase 公式の案内
+> <https://supabase.com/docs/guides/ai-tools/mcp> を見てください。
