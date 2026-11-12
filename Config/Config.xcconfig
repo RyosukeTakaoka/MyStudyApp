@@ -14,6 +14,12 @@ APP_GROUP_ID = group.$(APP_BUNDLE_ID)
 MARKETING_VERSION = 1.1
 CURRENT_PROJECT_VERSION = 1
 
+// ---- スクリーンタイム(集中モード)----
+// Xcode から ▶ で入れる版(Debug)では、いつも使えます。
+// TestFlight の版(Release)で使うには、Apple の「Family Controls (Distribution)」の許可が必要です。
+// 許可が下りたら、下の行を「RELEASE_SCREEN_TIME_SUFFIX = -ScreenTime」に書きかえてください。
+RELEASE_SCREEN_TIME_SUFFIX =
+
 // まず「空」を入れておく。Secrets.xcconfig がまだ無くてもビルドが通るようにするため。
 SUPABASE_HOST =
 SUPABASE_KEY =

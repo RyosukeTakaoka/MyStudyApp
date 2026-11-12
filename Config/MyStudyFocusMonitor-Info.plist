@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- アプリとデータを共有するフォルダ(App Group)の名前 -->
+	<key>AppGroupID</key>
+	<string>$(APP_GROUP_ID)</string>
+	<!-- 「これはスクリーンタイムの監視用の拡張機能です」という宣言 -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.deviceactivity.monitor-extension</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).FocusMonitorExtension</string>
+	</dict>
+</dict>
+</plist>

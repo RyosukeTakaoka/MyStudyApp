@@ -13,4 +13,9 @@ enum AppGroup {
         guard !id.isEmpty else { return nil }
         return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id)
     }
+
+    /// 共有の UserDefaults(小さな設定値の受け渡しに使う)
+    static var defaults: UserDefaults {
+        UserDefaults(suiteName: id) ?? .standard
+    }
 }

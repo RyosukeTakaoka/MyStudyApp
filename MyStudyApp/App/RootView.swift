@@ -16,6 +16,7 @@ struct RootView: View {
                         WidgetBridge.clear()
                         LiveActivityController.endAll()
                         StudyTimer().cancel()
+                        ScreenTimeController.resetAll()
                         Task { await NotificationScheduler.removeAll() }
                     }
                 }

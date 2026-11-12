@@ -13,6 +13,7 @@
 | 6 | オフラインキャッシュと同期 | iPhone |
 | 7 | TestFlight(内部テスト)で iPhone に入れる | App Store Connect・Xcode |
 | 1.1 | ウィジェット・ライブアクティビティ・自動タイマー・カレンダー | Xcode・iPhone |
+| 集中モード | スクリーンタイムで Anki 以外を制限 | Xcode・iPhone |
 | 困ったら | Xcode でエラーが出たとき | Xcode |
 | おまけ | Claude から予定を書きこめるようにする | claude.ai |
 
@@ -381,6 +382,50 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 | `Embedded binary's bundle identifier is not prefixed with the parent app's bundle identifier` | Bundle ID を Xcode の画面で直接変えた | Xcode の画面ではなく `Config/Config.xcconfig` の `APP_BUNDLE_ID` で変える。画面で変えた値は元の `$(APP_BUNDLE_ID)` に戻す |
 | ウィジェットに「アプリを開いてログインしてください」と出る | アプリがまだデータを書き出していない、または App Group の設定ちがい | アプリを一度開く。直らなければ手順5で、2つのターゲットの App Group が同じか確認 |
 | `git pull` で `Your local changes ... would be overwritten` | Xcode が書きかえたファイルがある | 表示されたファイル名で `git checkout -- ファイル名` を実行してから、もう一度 `git pull` |
+
+---
+
+## 集中モード(スクリーンタイムで Anki 以外を制限)
+
+勉強中は、選んだアプリ(Anki と MyStudy など)以外を開けないようにします。かけ方は3つです。
+
+| かけ方 | いつかかる | いつ外れる |
+|---|---|---|
+| 予定ブロックの時間(自動) | 予定の開始時刻。**アプリを閉じていても**始まる | 予定の終了時刻、またはその予定にチェックを付けたとき |
+| タイマー中 | タイマーを始めたとき(自動タイマーも) | タイマーを止めたとき。止め忘れても予定の終了時刻(最長3時間)で外れる |
+| 今すぐ集中モード | 25・50・90分のボタンを押したとき | 時間が来たとき |
+
+どれも「終わりの時刻」が必ず決まっているので、アプリを開けなくなっても、時間が来れば自動で外れます。
+
+### 大事な注意: TestFlight の版では、まだ使えません
+
+スクリーンタイムの機能は、Apple が特別な許可(Family Controls)を出したアプリしか配布できません。
+
+- **Xcode から ▶ で iPhone に入れた版:** すぐに使えます(有料の開発者アカウントなら、入れてから1年間使えます)
+- **TestFlight の版:** Apple に申請して許可が下りるまで、この機能は「使えません」と表示されます(ほかの機能はそのまま使えます)。
+  申請しても、返事まで数週間かかることがよくあります
+
+当面は、**Xcode から ▶ で入れた版を使う**のがおすすめです。
+
+### あなたがやること
+
+1. ターミナルで最新のコードを取りこむ(`git checkout -- MyStudyApp.xcodeproj` → `git pull`)
+2. Xcode の **TARGETS** に **MyStudyFocusMonitor** が増えています。これも **Signing & Capabilities** で **Team** を選び、**App Groups** にチェックを入れる
+3. **MyStudyApp** と **MyStudyFocusMonitor** の **Signing & Capabilities** に **Family Controls** が表示されていることを確認する
+   - 赤いエラーが出たら、Team を選び直す。直らなければ、右上の **+ Capability** から **Family Controls** を追加する
+4. **▶** で iPhone に入れる
+5. アプリの右上の **…** → **集中モード(スクリーンタイム)…** を開き、上から順に設定する
+   1. **スクリーンタイムの使用を許可する** → Face ID などで許可
+   2. **使ってよいアプリを選ぶ** → **Anki** と **MyStudy** を必ず選ぶ(必要なら Claude なども)
+      - **MyStudy を選び忘れると、集中モード中にこのアプリも開けなくなります。** その場合も、終わりの時刻には自動で外れます
+      - 「教育」などのカテゴリをまるごと選んでも反映されません。アプリを1つずつ選んでください
+   3. 「タイマー中」「予定ブロックの時間(自動)」を好みでオンにする
+6. 試しに **25分 集中する** を押し、ほかのアプリが開けなくなること、**今すぐ終える** で戻ることを確認する
+
+### TestFlight の版でも使いたくなったら
+
+1. Apple の申請フォーム(<https://developer.apple.com/contact/request/family-controls-distribution>)から、**アプリ本体**と**監視用の拡張機能**(`あなたのBundle ID.FocusMonitor`)の両方について申請する
+2. 許可が下りたら、`Config/Config.xcconfig` の `RELEASE_SCREEN_TIME_SUFFIX =` を `RELEASE_SCREEN_TIME_SUFFIX = -ScreenTime` に書きかえて、TestFlight に上げなおす
 
 ---
 

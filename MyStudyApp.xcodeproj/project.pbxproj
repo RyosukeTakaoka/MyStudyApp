@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5A0000000000000000000A01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5A0000000000000000000F02 /* Supabase */; };
+		5A0000000000000000000A03 /* MyStudyFocusMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A000000000000000000010A /* MyStudyFocusMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000109 /* MyStudyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -19,6 +20,13 @@
 			remoteGlobalIDString = 5A0000000000000000000502;
 			remoteInfo = MyStudyWidgetExtension;
 		};
+		5A0000000000000000000B03 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5A0000000000000000000601 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A0000000000000000000503;
+			remoteInfo = MyStudyFocusMonitor;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -29,6 +37,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */,
+				5A0000000000000000000A03 /* MyStudyFocusMonitor.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,6 +53,11 @@
 		5A0000000000000000000106 /* MyStudyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyStudyApp.entitlements; sourceTree = "<group>"; };
 		5A0000000000000000000107 /* MyStudyWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MyStudyWidget-Info.plist"; sourceTree = "<group>"; };
 		5A0000000000000000000108 /* MyStudyWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyStudyWidget.entitlements; sourceTree = "<group>"; };
+		5A000000000000000000010A /* MyStudyFocusMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyStudyFocusMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A000000000000000000010B /* MyStudyFocusMonitor-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MyStudyFocusMonitor-Info.plist"; sourceTree = "<group>"; };
+		5A000000000000000000010C /* MyStudyFocusMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyStudyFocusMonitor.entitlements; sourceTree = "<group>"; };
+		5A000000000000000000010D /* MyStudyFocusMonitor-ScreenTime.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "MyStudyFocusMonitor-ScreenTime.entitlements"; sourceTree = "<group>"; };
+		5A000000000000000000010E /* MyStudyApp-ScreenTime.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "MyStudyApp-ScreenTime.entitlements"; sourceTree = "<group>"; };
 		5A0000000000000000000109 /* MyStudyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MyStudyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -61,6 +75,16 @@
 		5A0000000000000000000203 /* MyStudyWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MyStudyWidget;
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000204 /* Focus */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Focus;
+			sourceTree = "<group>";
+		};
+		5A0000000000000000000205 /* FocusMonitor */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = FocusMonitor;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -81,6 +105,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A0000000000000000000303 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -90,6 +121,8 @@
 				5A0000000000000000000201 /* MyStudyApp */,
 				5A0000000000000000000202 /* Shared */,
 				5A0000000000000000000203 /* MyStudyWidget */,
+				5A0000000000000000000204 /* Focus */,
+				5A0000000000000000000205 /* FocusMonitor */,
 				5A0000000000000000000403 /* Config */,
 				5A0000000000000000000402 /* Products */,
 			);
@@ -100,6 +133,7 @@
 			children = (
 				5A0000000000000000000101 /* MyStudyApp.app */,
 				5A0000000000000000000109 /* MyStudyWidgetExtension.appex */,
+				5A000000000000000000010A /* MyStudyFocusMonitor.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -114,6 +148,10 @@
 				5A0000000000000000000106 /* MyStudyApp.entitlements */,
 				5A0000000000000000000107 /* MyStudyWidget-Info.plist */,
 				5A0000000000000000000108 /* MyStudyWidget.entitlements */,
+				5A000000000000000000010E /* MyStudyApp-ScreenTime.entitlements */,
+				5A000000000000000000010B /* MyStudyFocusMonitor-Info.plist */,
+				5A000000000000000000010C /* MyStudyFocusMonitor.entitlements */,
+				5A000000000000000000010D /* MyStudyFocusMonitor-ScreenTime.entitlements */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -134,10 +172,12 @@
 			);
 			dependencies = (
 				5A0000000000000000000B02 /* PBXTargetDependency */,
+				5A0000000000000000000B04 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5A0000000000000000000201 /* MyStudyApp */,
 				5A0000000000000000000202 /* Shared */,
+				5A0000000000000000000204 /* Focus */,
 			);
 			name = MyStudyApp;
 			packageProductDependencies = (
@@ -168,6 +208,28 @@
 			productReference = 5A0000000000000000000109 /* MyStudyWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		5A0000000000000000000503 /* MyStudyFocusMonitor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A0000000000000000000D04 /* Build configuration list for PBXNativeTarget "MyStudyFocusMonitor" */;
+			buildPhases = (
+				5A0000000000000000000703 /* Sources */,
+				5A0000000000000000000303 /* Frameworks */,
+				5A0000000000000000000803 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5A0000000000000000000205 /* FocusMonitor */,
+				5A0000000000000000000204 /* Focus */,
+				5A0000000000000000000202 /* Shared */,
+			);
+			name = MyStudyFocusMonitor;
+			productName = MyStudyFocusMonitor;
+			productReference = 5A000000000000000000010A /* MyStudyFocusMonitor.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -182,6 +244,9 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					5A0000000000000000000502 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					5A0000000000000000000503 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -206,6 +271,7 @@
 			targets = (
 				5A0000000000000000000501 /* MyStudyApp */,
 				5A0000000000000000000502 /* MyStudyWidgetExtension */,
+				5A0000000000000000000503 /* MyStudyFocusMonitor */,
 			);
 		};
 /* End PBXProject section */
@@ -219,6 +285,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5A0000000000000000000802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A0000000000000000000803 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -242,6 +315,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A0000000000000000000703 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -249,6 +329,11 @@
 			isa = PBXTargetDependency;
 			target = 5A0000000000000000000502 /* MyStudyWidgetExtension */;
 			targetProxy = 5A0000000000000000000B01 /* PBXContainerItemProxy */;
+		};
+		5A0000000000000000000B04 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A0000000000000000000503 /* MyStudyFocusMonitor */;
+			targetProxy = 5A0000000000000000000B03 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -378,7 +463,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp-ScreenTime.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -408,7 +493,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp$(RELEASE_SCREEN_TIME_SUFFIX).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -482,6 +567,56 @@
 			};
 			name = Release;
 		};
+		5A0000000000000000000C07 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyFocusMonitor-ScreenTime.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MyStudyFocusMonitor-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = MyStudy;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).FocusMonitor";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5A0000000000000000000C08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyFocusMonitor$(RELEASE_SCREEN_TIME_SUFFIX).entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MyStudyFocusMonitor-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = MyStudy;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).FocusMonitor";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -508,6 +643,15 @@
 			buildConfigurations = (
 				5A0000000000000000000C05 /* Debug */,
 				5A0000000000000000000C06 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A0000000000000000000D04 /* Build configuration list for PBXNativeTarget "MyStudyFocusMonitor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A0000000000000000000C07 /* Debug */,
+				5A0000000000000000000C08 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

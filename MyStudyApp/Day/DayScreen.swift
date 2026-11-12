@@ -13,6 +13,11 @@ struct DayScreen: View {
     /// 勉強時間のタイマー
     @State private var timer = StudyTimer()
     @State private var showsCalendar = false
+    /// 集中モード(スクリーンタイム)
+    @State private var screenTime = ScreenTimeController()
+    @State private var showsFocusSettings = false
+    @AppStorage(AppSettings.focusDuringTimerKey) private var focusDuringTimer = true
+    @AppStorage(AppSettings.focusAutoBlocksKey) private var focusAutoBlocks = false
     /// 設定(端末に保存される)
     @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = true
     @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
@@ -29,6 +34,7 @@ struct DayScreen: View {
         NavigationStack {
             List {
                 syncStatusSection
+                focusSection
                 timerSection
 
                 // 「今 → 次」は、今日を表示しているときだけ出す
@@ -74,6 +80,7 @@ struct DayScreen: View {
                 store.setOnline(network.isOnline)
                 store.requestSync()
                 restoreLiveActivity()
+                screenTime.refresh()
                 checkAutoTimer()
             }
             // 画面が出ているあいだ、30秒ごとに自動タイマーの開始・終了を確かめる
@@ -81,12 +88,24 @@ struct DayScreen: View {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(30))
                     checkAutoTimer()
+                    screenTime.refresh()
                 }
             }
             // 同期が終わるたびに、通知を予約しなおす(Claude が予定を変えても通知が合うように)
             .task(id: store.lastSyncSucceededAt) {
                 await rescheduleReminders()
+                rescheduleFocus()
                 checkAutoTimer()
+            }
+            .onChange(of: focusAutoBlocks) { _, _ in
+                rescheduleFocus()
+            }
+            // 予定をチェックしたら、その予定の自動の集中モードを外す
+            .onChange(of: store.doneCount) { _, _ in
+                rescheduleFocus()
+            }
+            .sheet(isPresented: $showsFocusSettings, onDismiss: rescheduleFocus) {
+                FocusSettingsView(screenTime: screenTime)
             }
             .onChange(of: remindersEnabled) { _, enabled in
                 Task {
@@ -124,6 +143,7 @@ struct DayScreen: View {
                     store.applyWidgetToggles(SharedStore.takePendingToggles())
                     store.refreshToday()
                     store.requestSync()
+                    screenTime.refresh()
                     checkAutoTimer()
                 case .inactive, .background:
                     // 閉じる前に、書きかけのふりかえりを保存する
@@ -195,6 +215,9 @@ struct DayScreen: View {
                 }
                 Toggle(isOn: $remindersEnabled) {
                     Label("開始時刻に通知", systemImage: "bell")
+                }
+                Button("集中モード(スクリーンタイム)…", systemImage: "lock.shield") {
+                    showsFocusSettings = true
                 }
                 Divider()
                 if !store.isToday {
@@ -295,12 +318,16 @@ struct DayScreen: View {
         )
         timer.start(running)
         showLiveActivity(for: running)
+        if focusDuringTimer && screenTime.isReady {
+            screenTime.startForTimer(plannedEnd: plannedEnd)
+        }
     }
 
     /// タイマーを止めて、勉強時間を記録する
     private func stopTimer(markDone: Bool) {
         guard let result = timer.stop(now: Date()) else { return }
         LiveActivityController.endAll()
+        screenTime.endForTimer()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
     }
@@ -338,6 +365,28 @@ struct DayScreen: View {
     private func restoreLiveActivity() {
         if let running = timer.running, !LiveActivityController.isShowing {
             showLiveActivity(for: running)
+        }
+    }
+
+    /// 予定ブロックの自動の集中モードを登録しなおす
+    private func rescheduleFocus() {
+        screenTime.rescheduleBlocks(items: store.upcomingItems(days: 1), enabled: focusAutoBlocks)
+    }
+
+    /// 集中モード中のお知らせ
+    @ViewBuilder
+    private var focusSection: some View {
+        if let until = screenTime.activeUntil {
+            Section {
+                HStack {
+                    Label("集中モード中(\(until.formatted(date: .omitted, time: .shortened)) まで)", systemImage: "lock.fill")
+                        .font(.subheadline)
+                    Spacer()
+                    Button("終える") { screenTime.endNow() }
+                        .buttonStyle(.borderless)
+                        .font(.subheadline)
+                }
+            }
         }
     }
 
