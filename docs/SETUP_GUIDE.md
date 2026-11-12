@@ -407,7 +407,7 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 
 当面は、**Xcode から ▶ で入れた版を使う**のがおすすめです。
 
-> TestFlight 用の版では、許可が下りるまで、監視用の拡張機能(MyStudyFocusMonitor)をアプリから自動で取りのぞいています。
+> 監視用の拡張機能(MyStudyFocusMonitor)は、Xcode から ▶ で入れる版にだけ入れています(Build Phases の「Embed Focus Monitor (Debug only)」)。
 > 拡張機能が入っていると、App Store Connect に「Missing Entitlement(com.apple.developer.family-controls)」と言われて、アップロードを断られるためです。
 
 ### あなたがやること
