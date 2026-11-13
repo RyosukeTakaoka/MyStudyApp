@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store Connect 向けに書き出す -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<!-- 書き出したら、そのまま App Store Connect にアップロードする -->
+	<key>destination</key>
+	<string>upload</string>
+	<!-- 署名は Xcode におまかせ(Xcode の設定でログインしている Apple アカウントを使う) -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<!-- TestFlight の内部テスト専用(まちがって App Store に出ることがない) -->
+	<key>testFlightInternalTestingOnly</key>
+	<true/>
+	<!-- ビルド番号は release.sh が決めるので、Xcode に勝手に変えさせない -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+	<key>uploadSymbols</key>
+	<true/>
+</dict>
+</plist>
