@@ -42,6 +42,12 @@ fi
 if [ ! -f "Config/Secrets.xcconfig" ]; then
   fail "Config/Secrets.xcconfig がありません。docs/SETUP_GUIDE.md のステップ2を見て作ってください。"
 fi
+if ! grep -Eq "^DEVELOPMENT_TEAM *= *[A-Z0-9]{10} *$" Config/Secrets.xcconfig; then
+  fail "Config/Secrets.xcconfig に Team ID(DEVELOPMENT_TEAM)が書かれていません。
+https://developer.apple.com/account の「メンバーシップの詳細」で「チーム ID」(英数字10文字)を調べて、
+次のように1行足してください(ABCDE12345 の部分を自分の ID に変える):
+  echo 'DEVELOPMENT_TEAM = ABCDE12345' >> Config/Secrets.xcconfig"
+fi
 echo "Xcode: $(xcodebuild -version | head -1)"
 
 # ---------------------------------------------------------------------
