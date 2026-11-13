@@ -51,6 +51,8 @@ final class DayStore {
     private let userId: UUID
     private let local: LocalStore
     private let api: PlanAPI
+    /// まだ送っていないタイマーの記録
+    private let sessions: SessionQueue
     /// 今の時刻を返す関数(テストのときに時刻を固定できるようにしている)
     private let now: () -> Date
 
@@ -65,10 +67,13 @@ final class DayStore {
     /// 画面が閉じられているあいだ(ログアウト後など)は、同期の結果を保存しない
     private var isStopped = false
 
-    init(userId: UUID, local: LocalStore, api: PlanAPI = RemoteAPI(), now: @escaping () -> Date = Date.init) {
+    init(userId: UUID, local: LocalStore, api: PlanAPI = RemoteAPI(), sessions: SessionQueue? = nil,
+         now: @escaping () -> Date = Date.init) {
         self.userId = userId
         self.local = local
         self.api = api
+        // 省略されたら、ふつうの保存場所を使う(初期値の式はメインスレッドの外で計算されるので、ここで作る)
+        self.sessions = sessions ?? SessionQueue()
         self.now = now
         let today = DayKey.today(now: now())
         self.today = today
@@ -194,6 +199,14 @@ final class DayStore {
         requestSync()
     }
 
+    /// タイマーの区間の記録(いつ始めて、いつ止めたか)を残す。送るのは次の同期のとき
+    func recordSession(_ session: StudySession?) {
+        guard let session else { return }
+        sessions.append(session)
+        reloadFromLocal()
+        requestSync()
+    }
+
     /// タイマーで測った勉強時間を記録する(markDone = true なら、あわせてチェックも付ける)
     func recordStudy(itemId: UUID, minutes: Int, markDone: Bool) {
         guard var current = local.item(id: itemId) else { return }
@@ -308,6 +321,14 @@ final class DayStore {
 
     /// 送る: 端末にたまっている「未送信」の変更を、サーバーへ送る
     private func pushPendingChanges() async throws {
+        // タイマーの記録
+        let unsentSessions = sessions.pending
+        if !unsentSessions.isEmpty {
+            try await api.insertSessions(unsentSessions)
+            guard !isStopped else { return }
+            sessions.remove(ids: Set(unsentSessions.map(\.id)))
+        }
+
         for pending in local.pendingItems() {
             try await api.updateProgress(
                 id: pending.item.id,
@@ -379,7 +400,7 @@ final class DayStore {
         if resetDraft || !wasDirty {
             reflectionDraft = savedReflection
         }
-        pendingCount = local.pendingItems().count + local.pendingDays().count
+        pendingCount = local.pendingItems().count + local.pendingDays().count + sessions.pending.count
         publishSnapshotIfChanged()
     }
 

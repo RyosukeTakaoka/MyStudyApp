@@ -55,6 +55,19 @@ struct RemoteAPI: Sendable {
     }
 }
 
+// MARK: - タイマーの記録
+
+extension RemoteAPI {
+    func insertSessions(_ sessions: [StudySession]) async throws {
+        guard !sessions.isEmpty else { return }
+        try await supabase
+            .from("study_sessions")
+            // ignoreDuplicates: 送り直したときに同じ id があれば、何もしない(二重にならない)
+            .upsert(sessions, onConflict: "id", returning: .minimal, ignoreDuplicates: true)
+            .execute()
+    }
+}
+
 // MARK: - 週次・期間の計画
 
 extension RemoteAPI: PlanBoardAPI {

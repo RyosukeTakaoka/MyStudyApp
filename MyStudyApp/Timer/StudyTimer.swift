@@ -23,8 +23,17 @@ struct RunningTimer: Codable, Equatable, Sendable {
     var pausedAt: Date? = nil
     /// このタイマーを始める前に、同じ予定ですでに記録してあった秒数(表示に足すだけで、記録はしない)
     var priorSeconds: TimeInterval = 0
+    /// その予定の日付(記録に残すため)
+    var itemDate: String? = nil
 
     var isPaused: Bool { pausedAt != nil }
+
+    /// 今の区間(startedAt 〜 end)の記録を作る。長さが0なら nil
+    func session(endingAt end: Date, reason: String) -> StudySession? {
+        guard end > startedAt else { return nil }
+        return StudySession(itemId: itemId, itemDate: itemDate, title: title, subject: subject,
+                            startedAt: startedAt, endedAt: end, endReason: reason)
+    }
 
     /// 画面に出す秒数(これまでの記録 + 今回)
     func displaySeconds(now: Date) -> TimeInterval { priorSeconds + elapsedSeconds(now: now) }
@@ -56,6 +65,7 @@ extension RunningTimer {
         accumulatedSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .accumulatedSeconds) ?? 0
         pausedAt = try c.decodeIfPresent(Date.self, forKey: .pausedAt)
         priorSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .priorSeconds) ?? 0
+        itemDate = try c.decodeIfPresent(String.self, forKey: .itemDate)
     }
 }
 
@@ -83,13 +93,16 @@ final class StudyTimer {
         save()
     }
 
-    /// 一時停止する(それまでの時間は覚えておく)
-    func pause(now: Date) {
-        guard var timer = running, !timer.isPaused else { return }
+    /// 一時停止する(それまでの時間は覚えておく)。止めた区間の記録を返す
+    @discardableResult
+    func pause(now: Date) -> StudySession? {
+        guard var timer = running, !timer.isPaused else { return nil }
+        let session = timer.session(endingAt: now, reason: "pause")
         timer.accumulatedSeconds = timer.elapsedSeconds(now: now)
         timer.pausedAt = now
         running = timer
         save()
+        return session
     }
 
     /// 再開する(0からではなく、止めたところから続きを数える)
@@ -104,7 +117,8 @@ final class StudyTimer {
     /// タイマーを止めて、かかった分数を返す(動いていなければ nil)。一時停止していた時間はふくまない。
     /// 返すのは「今回」の分だけ(これまでの記録 priorSeconds は、すでに保存してあるのでふくめない)。
     /// 自動タイマーは、予定の終了時刻を過ぎていたら終了時刻までで計算する。
-    func stop(now: Date) -> (itemId: UUID, minutes: Int)? {
+    /// reason: 止めた理由(stop / done / auto / switch)。動いていた区間の記録も返す(一時停止中なら nil)
+    func stop(now: Date, reason: String = "stop") -> (itemId: UUID, minutes: Int, session: StudySession?)? {
         guard let timer = running else { return nil }
         running = nil
         save()
@@ -115,7 +129,8 @@ final class StudyTimer {
         let seconds = timer.isPaused
             ? timer.accumulatedSeconds
             : timer.accumulatedSeconds + max(0, end.timeIntervalSince(timer.startedAt))
-        return (timer.itemId, Int((seconds / 60).rounded()))
+        let session = timer.isPaused ? nil : timer.session(endingAt: end, reason: reason)
+        return (timer.itemId, Int((seconds / 60).rounded()), session)
     }
 
     /// 記録せずに止める(ログアウトのときなど)

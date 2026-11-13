@@ -386,7 +386,8 @@ struct DayScreen: View {
             plannedEnd: plannedEnd,
             isAuto: isAuto,
             // この予定ですでに記録してある時間(「記録して終了」したあとにまた始めたとき、続きから表示する)
-            priorSeconds: TimeInterval(currentActualMinutes(of: item) * 60)
+            priorSeconds: TimeInterval(currentActualMinutes(of: item) * 60),
+            itemDate: item.date
         )
         timer.start(running)
         showLiveActivity(for: running)
@@ -413,7 +414,8 @@ struct DayScreen: View {
                 screenTime.startForTimer(plannedEnd: running.plannedEnd)
             }
         } else {
-            timer.pause(now: Date())
+            // 一時停止までの区間を記録に残す
+            store.recordSession(timer.pause(now: Date()))
             screenTime.endForTimer()
         }
         // ライブアクティビティも、止まった時間/続きの時間に出し直す
@@ -422,9 +424,11 @@ struct DayScreen: View {
         }
     }
 
-    /// タイマーを止めて、勉強時間を記録する
-    private func stopTimer(markDone: Bool) {
-        guard let result = timer.stop(now: Date()) else { return }
+    /// タイマーを止めて、勉強時間を記録する。
+    /// reason: 記録に残す止めた理由(省略すると、完了なら done、そうでなければ stop)
+    private func stopTimer(markDone: Bool, reason: String? = nil) {
+        guard let result = timer.stop(now: Date(), reason: reason ?? (markDone ? "done" : "stop")) else { return }
+        store.recordSession(result.session)
         LiveActivityController.endAll()
         screenTime.endForTimer()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -435,7 +439,7 @@ struct DayScreen: View {
     private func checkAutoTimer() {
         // 自動で始めたタイマーは、設定に関係なく終了時刻で止める
         if timer.shouldAutoStop(now: Date()) {
-            stopTimer(markDone: false)
+            stopTimer(markDone: false, reason: "auto")
         }
         guard autoTimerEnabled, scenePhase == .active else { return }
         let todayItems = store.upcomingItems(days: 0)
@@ -664,7 +668,7 @@ struct DayScreen: View {
     private func startTimerByLongPress(_ item: PlanItem) {
         if let running = timer.running {
             if running.itemId == item.id { return }   // 同じ予定なら何もしない
-            stopTimer(markDone: false)
+            stopTimer(markDone: false, reason: "switch")
         }
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         startTimer(for: item, isAuto: false)

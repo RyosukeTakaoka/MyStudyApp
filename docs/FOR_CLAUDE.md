@@ -274,3 +274,63 @@ select * from public.replace_week_plan(
 - 入れ直しても、**同じ `group_name` と `title` のやることは、できた箱を引きつぎます**(箱を減らしたときは、はみ出た分だけ消えます)
 - だから、やることの名前は週の途中で変えないでください(変えると進み具合が0に戻ります)
 - `group_name` はグループの見出しになります(例: 学校 / 鑑定士)。`sort_order` の小さい順に並びます
+
+---
+
+## 7. 実績(実際にやった時間)を読む
+
+アプリのタイマーで測った時間は、次の2か所に入ります。**どちらも読むだけにして、書きかえないでください。**
+
+| 場所 | 中身 |
+|---|---|
+| `items.actual_minutes` | 予定ごとの合計(分) |
+| `study_sessions` | タイマーの区間ごとの記録。「始めた(再開した)時刻 〜 止めた時刻」が1行 |
+
+`study_sessions` の列:
+
+| 列 | 中身 |
+|---|---|
+| `item_id` / `item_date` / `title` / `subject` | どの予定のタイマーか(題名と科目は、その時点の写し) |
+| `started_at` / `ended_at` | 始めた・止めた時刻(**世界標準時**。日本時間にするときは `at time zone 'Asia/Tokyo'`) |
+| `end_reason` | 止めた理由: `pause`(一時停止)/ `stop`(記録して終了)/ `done`(完了)/ `auto`(予定の終了時刻で自動終了)/ `switch`(別の予定に切りかえ) |
+| `minutes` | その区間の長さ(分、小数1けた。自動で計算される) |
+
+- 実績は、タイマーを**止めたとき**(一時停止・終了)に記録されます。動いている途中の分は、まだ入っていません
+- 電波がない場所で止めた分は、アプリが次につながったときに送られます
+
+### 予定と実績をくらべる(1週間ぶん)
+
+```sql
+select date, title, subject, done,
+       extract(epoch from (end_time - start_time)) / 60 as planned_minutes,
+       actual_minutes
+from items
+where user_id = 'ここにuser_idを入れる'
+  and date between '2026-11-09' and '2026-11-15'
+order by date, start_time nulls last, sort_order;
+```
+
+### 科目ごとの合計(1週間ぶん)
+
+```sql
+select subject, sum(minutes) as total_minutes, count(*) as sessions
+from study_sessions
+where user_id = 'ここにuser_idを入れる'
+  and (started_at at time zone 'Asia/Tokyo')::date between '2026-11-09' and '2026-11-15'
+group by subject
+order by total_minutes desc;
+```
+
+### 1日の流れ(いつ勉強して、いつ休んだか)
+
+```sql
+select to_char(started_at at time zone 'Asia/Tokyo', 'HH24:MI') as start_jst,
+       to_char(ended_at   at time zone 'Asia/Tokyo', 'HH24:MI') as end_jst,
+       title, subject, minutes, end_reason
+from study_sessions
+where user_id = 'ここにuser_idを入れる'
+  and (started_at at time zone 'Asia/Tokyo')::date = '2026-11-13'
+order by started_at;
+```
+
+**計画に生かすコツ:** 予定の時間より実績がいつも長い科目は、次の計画で時間を多めにとる。一時停止(`pause`)が多い時間帯は、集中しにくい時間帯かもしれない。

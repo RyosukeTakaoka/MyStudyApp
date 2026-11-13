@@ -18,6 +18,7 @@ struct RootView: View {
                         StudyTimer().cancel()
                         ScreenTimeController.resetAll()
                         PlanBoardStore.clearSaved()
+                        SessionQueue.clearSaved()
                         Task { await NotificationScheduler.removeAll() }
                     }
                 }
