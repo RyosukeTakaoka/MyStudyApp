@@ -13,6 +13,8 @@ struct DayScreen: View {
     /// 勉強時間のタイマー
     @State private var timer = StudyTimer()
     @State private var showsCalendar = false
+    /// タイマーまでスクロールする合図(数字が増えるたびに移動する)
+    @State private var scrollToTimerRequest = 0
     /// 集中モード(スクリーンタイム)
     @State private var screenTime = ScreenTimeController()
     @State private var showsFocusSettings = false
@@ -36,6 +38,8 @@ struct DayScreen: View {
 
     var body: some View {
         NavigationStack {
+            // ScrollViewReader: 「この行まで移動して」とスクロールを命令できるようにする入れ物
+            ScrollViewReader { proxy in
             List {
                 syncStatusSection
                 focusSection
@@ -178,6 +182,17 @@ struct DayScreen: View {
             .onChange(of: network.isOnline) { _, online in
                 store.setOnline(online)
             }
+            // 長押しでタイマーを始めたら、いちばん上のタイマーまで移動する
+            .onChange(of: scrollToTimerRequest) { _, _ in
+                Task { @MainActor in
+                    // タイマーの欄が画面に作られるのを少し待ってから移動する
+                    try? await Task.sleep(for: .milliseconds(80))
+                    withAnimation(.easeInOut) {
+                        proxy.scrollTo(Self.timerRowID, anchor: .top)
+                    }
+                }
+            }
+            }
         }
         // この画面が閉じられたら(ログアウト)、同期を止める
         .onAppear { store.setActive(true) }
@@ -283,6 +298,9 @@ struct DayScreen: View {
 
     // MARK: - タイマー
 
+    /// タイマーの欄の目印(スクロールで移動するときに使う)
+    private static let timerRowID = "timer-row"
+
     @ViewBuilder
     private var timerSection: some View {
         if let running = timer.running {
@@ -347,6 +365,7 @@ struct DayScreen: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .id(Self.timerRowID)
             }
         }
     }
@@ -634,6 +653,7 @@ struct DayScreen: View {
         }
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         startTimer(for: item, isAuto: false)
+        scrollToTimerRequest += 1   // 数字が変わると、上の onChange が動いてタイマーまで移動する
     }
 
     private func toggle(_ item: PlanItem) {
