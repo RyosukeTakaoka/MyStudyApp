@@ -24,6 +24,9 @@ final class CachedItem {
     var doneAt: Date?
     var actualMinutes: Int?
     var note: String?
+    /// 手順と注意(あとから足した項目なので、最初の値を決めておく)
+    var steps: [String] = []
+    var cautions: [String] = []
     /// まだサーバーに送っていないチェックの変更があるか
     var needsSync: Bool
 
@@ -42,6 +45,8 @@ final class CachedItem {
         self.doneAt = item.doneAt
         self.actualMinutes = item.actualMinutes
         self.note = item.note
+        self.steps = item.steps
+        self.cautions = item.cautions
         self.needsSync = local.needsSync
     }
 
@@ -60,6 +65,8 @@ final class CachedItem {
         doneAt = item.doneAt
         actualMinutes = item.actualMinutes
         note = item.note
+        steps = item.steps
+        cautions = item.cautions
         needsSync = local.needsSync
     }
 
@@ -69,7 +76,8 @@ final class CachedItem {
             item: PlanItem(
                 id: id, date: date, kind: kind, startTime: startTime, endTime: endTime,
                 title: title, subject: subject, sortOrder: sortOrder, source: source,
-                done: done, doneAt: doneAt, actualMinutes: actualMinutes, note: note
+                done: done, doneAt: doneAt, actualMinutes: actualMinutes, note: note,
+                steps: steps, cautions: cautions
             ),
             needsSync: needsSync
         )

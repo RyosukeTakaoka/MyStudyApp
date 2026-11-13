@@ -16,10 +16,14 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
     var doneAt: Date?
     var actualMinutes: Int?
     var note: String?
+    /// 手順(番号つきで表示する)
+    var steps: [String] = []
+    /// 注意(箇条書きで表示する)
+    var cautions: [String] = []
 
     // Swift 側の名前(startTime)と、データベース側の列名(start_time)の対応表
     enum CodingKeys: String, CodingKey {
-        case id, date, kind, title, subject, source, done, note
+        case id, date, kind, title, subject, source, done, note, steps, cautions
         case startTime = "start_time"
         case endTime = "end_time"
         case sortOrder = "sort_order"
@@ -47,7 +51,13 @@ extension PlanItem {
         doneAt = (try? c.decodeIfPresent(Date.self, forKey: .doneAt)) ?? nil
         actualMinutes = try c.decodeIfPresent(Int.self, forKey: .actualMinutes)
         note = try c.decodeIfPresent(String.self, forKey: .note)
+        // 手順と注意は、無い・読めないときは空にする(古いデータでも表示できるように)
+        steps = (try? c.decodeIfPresent([String].self, forKey: .steps)) ?? []
+        cautions = (try? c.decodeIfPresent([String].self, forKey: .cautions)) ?? []
     }
+
+    /// 手順か注意があるか
+    var hasGuide: Bool { !steps.isEmpty || !cautions.isEmpty }
 
     /// 時間つきの予定か
     var isBlock: Bool { kind == "block" }

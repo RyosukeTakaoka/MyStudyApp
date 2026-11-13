@@ -38,14 +38,28 @@ enum CalendarSyncPlan {
     static func drafts(items: [PlanItem], calendar: Calendar = DayKey.gregorian()) -> [CalendarEventDraft] {
         items.compactMap { item in
             guard item.isBlock,
-                  let startMinutes = item.startMinutes, let endMinutes = item.endMinutes,
-                  let start = DayKey.date(dayKey: item.date, minutes: startMinutes, calendar: calendar),
-                  let end = DayKey.date(dayKey: item.date, minutes: endMinutes, calendar: calendar)
+                  let startMinutes = item.startMinutes,
+                  let start = DayKey.date(dayKey: item.date, minutes: startMinutes, calendar: calendar)
             else { return nil }
+            // 終わりの時刻がない予定(例: 起きる 6:30)は、15分の予定として書き出す
+            let end = item.endMinutes.flatMap { DayKey.date(dayKey: item.date, minutes: $0, calendar: calendar) }
+                ?? start.addingTimeInterval(15 * 60)
             let title = (item.done ? "✓ " : "") + "\(item.title)(\(item.subject))"
-            let note = (item.note?.isEmpty == false) ? item.note : nil
-            return CalendarEventDraft(itemId: item.id, title: title, start: start, end: end, notes: note)
+            return CalendarEventDraft(itemId: item.id, title: title, start: start, end: end, notes: notes(for: item))
         }
+    }
+
+    /// カレンダーのメモ欄に入れる文(メモ・手順・注意)。何も無ければ nil
+    static func notes(for item: PlanItem) -> String? {
+        var parts: [String] = []
+        if let note = item.note, !note.isEmpty { parts.append(note) }
+        if !item.steps.isEmpty {
+            parts.append("手順\n" + item.steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        }
+        if !item.cautions.isEmpty {
+            parts.append("注意\n" + item.cautions.map { "・\($0)" }.joined(separator: "\n"))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
     }
 
     struct Changes: Equatable {

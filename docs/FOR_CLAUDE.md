@@ -38,7 +38,7 @@
 | `date` | date | 日付(日本時間) | 必ず指定 |
 | `kind` | text | `'block'` = 時間つきの予定 / `'task'` = 時間なしのやること | 必ず指定 |
 | `start_time` | time | 開始時刻(例 `'16:30'`)。**block は必須、task は NULL** | block のみ |
-| `end_time` | time | 終了時刻(例 `'17:30'`)。**block は必須、task は NULL** | block のみ |
+| `end_time` | time | 終了時刻(例 `'17:30'`)。**block では任意**(「6:30 起きる」のように開始だけでもよい)、task は NULL | block のみ(任意) |
 | `title` | text | 内容(例「Anki 鑑定評価基準」) | 必ず指定 |
 | `subject` | text | 科目。下の「推奨値」から選ぶ。省略すると `'その他'` | 指定する |
 | `sort_order` | integer | 並び順(小さいほど上)。10, 20, 30… と10きざみで付ける | 指定する |
@@ -46,7 +46,9 @@
 | `done` | boolean | チェック済みか(ユーザーがアプリで付ける) | **触らない** |
 | `done_at` | timestamptz | チェックした日時(自動) | **触らない** |
 | `actual_minutes` | integer | 実際にかかった分数(アプリのタイマーが記録する) | **触らない** |
-| `note` | text | メモ。予定の補足を書いてもよい(例「p.30〜45」) | 任意 |
+| `note` | text | メモ。予定の補足を書いてもよい(例「15分(解く10分+答え合わせ5分)」) | 任意 |
+| `steps` | jsonb | **手順**。文字の配列(例 `["10分タイマーで解く", "答え合わせ"]`)。アプリで「手順と注意」を開くと番号つきで出る | 任意 |
+| `cautions` | jsonb | **注意**。文字の配列。アプリで箇条書きで出る | 任意 |
 | `created_at` / `updated_at` | timestamptz | 自動で入る | 触らない |
 
 **`subject` の推奨値**(アプリが色分けに使います。表記をそろえてください)
@@ -143,9 +145,14 @@ select * from public.replace_plan(
   '2026-11-13',
   '鑑定評価基準 総論を1周する',
   '[
-    {"kind":"block","start_time":"16:30","end_time":"17:30","title":"Anki 鑑定評価基準","subject":"鑑定理論","sort_order":10},
-    {"kind":"block","start_time":"19:00","end_time":"20:30","title":"民法 物権 過去問 10問","subject":"民法","sort_order":20},
-    {"kind":"task","title":"英語の宿題を提出する","subject":"学校","sort_order":30}
+    {"kind":"block","start_time":"06:30","title":"起きる","sort_order":10},
+    {"kind":"block","start_time":"06:40","end_time":"06:55","title":"経済 ミニテスト1問","subject":"経済",
+     "note":"15分(解く10分+答え合わせ5分)",
+     "steps":["10分タイマーで解く","答え合わせで間違えたところに赤ペン","最後に「なぜそうなるか」を1文で書く"],
+     "cautions":["解けなかった所は、TACでAnkiに入れる候補としてメモしておく"],
+     "sort_order":20},
+    {"kind":"block","start_time":"16:30","end_time":"17:30","title":"Anki 鑑定評価基準","subject":"鑑定理論","sort_order":30},
+    {"kind":"task","title":"英語の宿題を提出する","subject":"学校","sort_order":40}
   ]'::jsonb
 );
 -- 結果: deleted_count(消した数)と inserted_count(入れた数)が返る
@@ -154,7 +161,8 @@ select * from public.replace_plan(
 select public.remove_plan_items('ここにuser_idを入れる', array['消したい行のid']::uuid[]);
 ```
 
-- `p_items` の各行で使えるキー: `kind`(必須)、`title`(必須)、`start_time`・`end_time`(block は必須)、`subject`、`sort_order`、`note`
+- `p_items` の各行で使えるキー: `kind`(必須)、`title`(必須)、`start_time`(block は必須)、`end_time`(任意)、`subject`、`sort_order`、`note`、`steps`(手順の配列)、`cautions`(注意の配列)
+- **手順と注意の書き方のコツ:** 1つの手順は1つの動作にして、短く書く(例「10分タイマーで解く」)。順番が大事なものは `steps`、気をつけることは `cautions` に分ける
 - 1行でもまちがいがあると、関数全体が取り消されて何も変わりません(エラー文を読んで直してから、もう一度呼ぶ)
 
 ### 予定を1件だけ追加したいとき
@@ -198,7 +206,8 @@ where user_id = 'ここにuser_idを入れる'
 | エラーメッセージの一部 | 原因 | 直し方 |
 |---|---|---|
 | `チェック済み(done = true)の行は削除できません` | DELETE に `done = false` の条件がない | `and done = false` を付ける |
-| `violates check constraint "items_time_matches_kind"` | block なのに時刻がない、または task なのに時刻がある | block は開始・終了の両方を入れる。task は両方 `null` |
+| `violates check constraint "items_time_matches_kind"` | block なのに開始時刻がない、または task なのに時刻がある | block は開始時刻を入れる(終了は任意)。task は両方 `null` |
+| `violates check constraint "items_steps_check"`(または `items_cautions_check`) | 手順・注意が配列になっていない | `"steps":["…","…"]` のように `[ ]` でかこむ |
 | `violates check constraint "items_kind_check"` | `kind` が `'block'` `'task'` 以外 | どちらかに直す |
 | `null value in column "user_id"` | `user_id` を指定していない | 2章の方法で調べて指定する |
 | `violates foreign key constraint` | `user_id` の値がまちがっている | 2章の SQL で正しい `id` を確認する |
