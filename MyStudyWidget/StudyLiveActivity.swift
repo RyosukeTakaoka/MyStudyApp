@@ -19,7 +19,7 @@ struct StudyLiveActivity: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.startedAt, style: .timer)
+                    ElapsedText(state: context.state)
                         .font(.title3.bold().monospacedDigit())
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 90)
@@ -34,15 +34,15 @@ struct StudyLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "timer")
-                    .foregroundStyle(.green)
+                Image(systemName: context.state.pausedElapsed == nil ? "timer" : "pause.fill")
+                    .foregroundStyle(context.state.pausedElapsed == nil ? Color.green : Color.orange)
             } compactTrailing: {
-                Text(context.state.startedAt, style: .timer)
+                ElapsedText(state: context.state)
                     .monospacedDigit()
                     .frame(maxWidth: 56)
             } minimal: {
-                Image(systemName: "timer")
-                    .foregroundStyle(.green)
+                Image(systemName: context.state.pausedElapsed == nil ? "timer" : "pause.fill")
+                    .foregroundStyle(context.state.pausedElapsed == nil ? Color.green : Color.orange)
             }
         }
     }
@@ -54,7 +54,8 @@ private struct LiveActivityLockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("勉強中", systemImage: "timer")
+                Label(state.pausedElapsed == nil ? "勉強中" : "一時停止中",
+                      systemImage: state.pausedElapsed == nil ? "timer" : "pause.fill")
                     .font(.caption.bold())
                 Spacer()
                 Text(state.subject)
@@ -66,7 +67,7 @@ private struct LiveActivityLockView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                Text(state.startedAt, style: .timer)
+                ElapsedText(state: state)
                     .font(.title2.bold().monospacedDigit())
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 110)
@@ -77,12 +78,25 @@ private struct LiveActivityLockView: View {
     }
 }
 
-/// 予定の終了時刻までの進み具合のバー
+/// 経過時間。動いているときは自動で数え、一時停止中は止まった時間を出す
+private struct ElapsedText: View {
+    let state: StudyActivityAttributes.ContentState
+
+    var body: some View {
+        if let paused = state.pausedElapsed {
+            Text(NowNext.clockText(paused))
+        } else {
+            Text(state.startedAt, style: .timer)
+        }
+    }
+}
+
+/// 予定の終了時刻までの進み具合のバー(一時停止中は出さない)
 private struct PlannedProgress: View {
     let state: StudyActivityAttributes.ContentState
 
     var body: some View {
-        if let end = state.plannedEnd, end > state.startedAt {
+        if state.pausedElapsed == nil, let end = state.plannedEnd, end > state.startedAt {
             ProgressView(timerInterval: state.startedAt...end, countsDown: false) {
                 EmptyView()
             } currentValueLabel: {

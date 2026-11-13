@@ -289,24 +289,45 @@ struct DayScreen: View {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label(running.isAuto ? "勉強中(自動)" : "勉強中", systemImage: "timer")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
+                        if running.isPaused {
+                            Label("一時停止中", systemImage: "pause.fill")
+                                .font(.caption.bold())
+                                .foregroundStyle(.orange)
+                        } else {
+                            Label(running.isAuto ? "勉強中(自動)" : "勉強中", systemImage: "timer")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         SubjectTag(subject: running.subject)
                     }
                     Text(running.title)
                         .font(.title3.bold())
-                    // style: .timer は、始めた時刻からの経過時間を自動で数えて表示する
-                    Text(running.startedAt, style: .timer)
-                        .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
-                    if let end = running.plannedEnd, end > running.startedAt {
-                        ProgressView(timerInterval: running.startedAt...end, countsDown: false) {
-                            EmptyView()
-                        } currentValueLabel: {
-                            EmptyView()
+                    Group {
+                        if running.isPaused {
+                            // 一時停止中は、止めたときの時間をそのまま出す
+                            Text(NowNext.clockText(running.accumulatedSeconds))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            // style: .timer は、その時刻からの経過時間を自動で数えて表示する。
+                            // 一時停止していた分だけ後ろにずらした時刻を渡すので、続きから数える
+                            Text(running.virtualStart, style: .timer)
                         }
                     }
+                    .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
+
+                    // 1段目: 一時停止 / 再開(いちばん押しやすい大きなボタン)
+                    Button {
+                        togglePause()
+                    } label: {
+                        Label(running.isPaused ? "再開" : "一時停止",
+                              systemImage: running.isPaused ? "play.fill" : "pause.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(running.isPaused ? .green : .orange)
+
+                    // 2段目: 終わらせるボタン(どちらも、それまでの時間を記録する)
                     HStack(spacing: 12) {
                         Button {
                             stopTimer(markDone: true)
@@ -314,12 +335,12 @@ struct DayScreen: View {
                             Label("完了", systemImage: "checkmark")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
 
                         Button {
                             stopTimer(markDone: false)
                         } label: {
-                            Label("中断", systemImage: "pause")
+                            Label("記録して終了", systemImage: "stop.fill")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -345,6 +366,25 @@ struct DayScreen: View {
         showLiveActivity(for: running)
         if focusDuringTimer && screenTime.isReady {
             screenTime.startForTimer(plannedEnd: plannedEnd)
+        }
+    }
+
+    /// 一時停止 ⇄ 再開。一時停止中は、タイマーでかけた集中モードも外す
+    private func togglePause() {
+        guard let running = timer.running else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if running.isPaused {
+            timer.resume(now: Date())
+            if focusDuringTimer && screenTime.isReady {
+                screenTime.startForTimer(plannedEnd: running.plannedEnd)
+            }
+        } else {
+            timer.pause(now: Date())
+            screenTime.endForTimer()
+        }
+        // ライブアクティビティも、止まった時間/続きの時間に出し直す
+        if let updated = timer.running {
+            showLiveActivity(for: updated)
         }
     }
 

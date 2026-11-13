@@ -15,7 +15,8 @@ enum LiveActivityController {
         let state = StudyActivityAttributes.ContentState(
             title: timer.title,
             subject: timer.subject,
-            startedAt: timer.startedAt,
+            startedAt: timer.virtualStart,
+            pausedElapsed: timer.isPaused ? timer.accumulatedSeconds : nil,
             plannedEnd: timer.plannedEnd,
             nextTitle: nextTitle,
             nextStart: nextStart

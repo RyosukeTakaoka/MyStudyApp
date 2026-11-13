@@ -9,8 +9,10 @@ struct StudyActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var title: String
         var subject: String
-        /// タイマーを始めた時刻(ここからの経過時間を表示する)
+        /// 数え始めた時刻(ここからの経過時間を表示する。一時停止した分だけ後ろにずらしてある)
         var startedAt: Date
+        /// 一時停止中なら、その時点の経過秒数(動いているときは nil)
+        var pausedElapsed: Double?
         /// 予定の終了時刻(進み具合のバーに使う。無ければ nil)
         var plannedEnd: Date?
         var nextTitle: String?

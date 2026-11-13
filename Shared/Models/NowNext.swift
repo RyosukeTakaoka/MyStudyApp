@@ -37,6 +37,13 @@ struct NowNext: Equatable {
         )
     }
 
+    /// 秒数を時計の形にする(例: 25:09、1:05:09)。一時停止中の表示に使う
+    static func clockText(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let h = total / 3600, m = (total % 3600) / 60, s = total % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
+
     /// 分数を「あと1時間20分」のような文字にする
     static func durationText(_ minutes: Int) -> String {
         let hours = minutes / 60
