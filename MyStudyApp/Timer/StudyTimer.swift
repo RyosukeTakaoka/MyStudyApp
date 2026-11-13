@@ -21,8 +21,16 @@ struct RunningTimer: Codable, Equatable, Sendable {
     var accumulatedSeconds: TimeInterval = 0
     /// 一時停止した時刻(動いているときは nil)
     var pausedAt: Date? = nil
+    /// このタイマーを始める前に、同じ予定ですでに記録してあった秒数(表示に足すだけで、記録はしない)
+    var priorSeconds: TimeInterval = 0
 
     var isPaused: Bool { pausedAt != nil }
+
+    /// 画面に出す秒数(これまでの記録 + 今回)
+    func displaySeconds(now: Date) -> TimeInterval { priorSeconds + elapsedSeconds(now: now) }
+
+    /// 画面で「この時刻から数え始めた」とみなす時刻(これまでの記録の分も、前にずらす)
+    var displayStart: Date { virtualStart.addingTimeInterval(-priorSeconds) }
 
     /// 経過した秒数
     func elapsedSeconds(now: Date) -> TimeInterval {
@@ -47,6 +55,7 @@ extension RunningTimer {
         isAuto = try c.decodeIfPresent(Bool.self, forKey: .isAuto) ?? false
         accumulatedSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .accumulatedSeconds) ?? 0
         pausedAt = try c.decodeIfPresent(Date.self, forKey: .pausedAt)
+        priorSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .priorSeconds) ?? 0
     }
 }
 
@@ -93,6 +102,7 @@ final class StudyTimer {
     }
 
     /// タイマーを止めて、かかった分数を返す(動いていなければ nil)。一時停止していた時間はふくまない。
+    /// 返すのは「今回」の分だけ(これまでの記録 priorSeconds は、すでに保存してあるのでふくめない)。
     /// 自動タイマーは、予定の終了時刻を過ぎていたら終了時刻までで計算する。
     func stop(now: Date) -> (itemId: UUID, minutes: Int)? {
         guard let timer = running else { return nil }

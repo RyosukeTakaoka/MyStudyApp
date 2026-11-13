@@ -324,15 +324,20 @@ struct DayScreen: View {
                     Group {
                         if running.isPaused {
                             // 一時停止中は、止めたときの時間をそのまま出す
-                            Text(NowNext.clockText(running.accumulatedSeconds))
+                            Text(NowNext.clockText(running.priorSeconds + running.accumulatedSeconds))
                                 .foregroundStyle(.secondary)
                         } else {
                             // style: .timer は、その時刻からの経過時間を自動で数えて表示する。
-                            // 一時停止していた分だけ後ろにずらした時刻を渡すので、続きから数える
-                            Text(running.virtualStart, style: .timer)
+                            // 「これまでの記録」と「一時停止」の分だけずらした時刻を渡すので、続きから数える
+                            Text(running.displayStart, style: .timer)
                         }
                     }
                     .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
+                    if running.priorSeconds > 0 {
+                        Text("前回までの記録 \(NowNext.durationText(Int(running.priorSeconds / 60))) をふくむ")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     // 1段目: 一時停止 / 再開(いちばん押しやすい大きなボタン)
                     Button {
@@ -379,13 +384,23 @@ struct DayScreen: View {
             subject: item.subject,
             startedAt: Date(),
             plannedEnd: plannedEnd,
-            isAuto: isAuto
+            isAuto: isAuto,
+            // この予定ですでに記録してある時間(「記録して終了」したあとにまた始めたとき、続きから表示する)
+            priorSeconds: TimeInterval(currentActualMinutes(of: item) * 60)
         )
         timer.start(running)
         showLiveActivity(for: running)
         if focusDuringTimer && screenTime.isReady {
             screenTime.startForTimer(plannedEnd: plannedEnd)
         }
+    }
+
+    /// その予定の、いちばん新しい記録(分)。画面のリストを優先し、無ければ渡された値を使う
+    private func currentActualMinutes(of item: PlanItem) -> Int {
+        let latest = store.items.first { $0.id == item.id }
+            ?? store.upcomingItems(days: 0).first { $0.id == item.id }
+            ?? item
+        return latest.actualMinutes ?? 0
     }
 
     /// 一時停止 ⇄ 再開。一時停止中は、タイマーでかけた集中モードも外す
