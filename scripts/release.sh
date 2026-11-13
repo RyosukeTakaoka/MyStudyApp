@@ -50,6 +50,25 @@ https://developer.apple.com/account の「メンバーシップの詳細」で�
 fi
 echo "Xcode: $(xcodebuild -version | head -1)"
 
+# iPhone などから SSH でつないでいるときは、Mac のキーチェーン(パスワードや証明書の保管庫)が
+# 閉じていて、Xcode のアカウントや署名の証明書が見えない。最初に開けておく
+if [ -n "${SSH_CONNECTION:-}" ]; then
+  echo "SSH でつながっているので、キーチェーンを開きます。Mac のログインパスワードを入れてください(画面には出ません)"
+  security unlock-keychain "$HOME/Library/Keychains/login.keychain-db" \
+    || fail "キーチェーンを開けませんでした。パスワードを確かめて、もう一度ためしてください。"
+fi
+
+# App Store Connect の API キーがあれば使う(Xcode にログインしていなくても署名・アップロードできる)
+AUTH_ARGS=()
+if [ -f scripts/asc-api-key.env ]; then
+  # shellcheck disable=SC1091
+  source scripts/asc-api-key.env
+  ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"
+  [ -f "$ASC_KEY_PATH" ] || fail "API キーのファイルが見つかりません: $ASC_KEY_PATH"
+  AUTH_ARGS=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+  echo "App Store Connect API キーを使います(キー ID: $ASC_KEY_ID)"
+fi
+
 # ---------------------------------------------------------------------
 step "2/5 最新のコードを取りこみます"
 # ---------------------------------------------------------------------
@@ -83,10 +102,17 @@ if ! xcodebuild archive \
     -destination "generic/platform=iOS" \
     -archivePath "$ARCHIVE_PATH" \
     -allowProvisioningUpdates \
+    ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
     CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
     > "$LOG_DIR/archive.log" 2>&1; then
   echo "---- エラーの部分 ----"
   grep -E "error:|\*\* ARCHIVE FAILED" "$LOG_DIR/archive.log" | head -20 || true
+  if grep -q "No Accounts" "$LOG_DIR/archive.log"; then
+    echo ""
+    echo "ヒント: ターミナルから Xcode のアカウントが見えていません。"
+    echo "  ・Mac の前で、Xcode の 設定 → Accounts に Apple アカウントがあるか確かめる"
+    echo "  ・それでもだめなら、App Store Connect の API キーを使う(docs/SETUP_GUIDE.md の「ターミナルからアップロード」)"
+  fi
   fail "Archive に失敗しました。全部のログ: $LOG_DIR/archive.log"
 fi
 echo "Archive できました: $ARCHIVE_PATH"
@@ -99,6 +125,7 @@ if ! xcodebuild -exportArchive \
     -exportPath "$EXPORT_PATH" \
     -exportOptionsPlist scripts/ExportOptions.plist \
     -allowProvisioningUpdates \
+    ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
     > "$LOG_DIR/upload.log" 2>&1; then
   echo "---- エラーの部分 ----"
   grep -E "error:|Error|\*\* EXPORT FAILED" "$LOG_DIR/upload.log" | head -20 || true

@@ -484,6 +484,45 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 
 ---
 
+## ターミナルからアップロード(scripts/release.sh)
+
+```bash
+cd ~/Desktop/MyStudyApp
+./scripts/release.sh
+```
+
+### `No Accounts` と出るとき: App Store Connect の API キーを使う
+
+iPhone から SSH で Mac につないでいるときなどは、Xcode にログインしているアカウントがターミナルから見えないことがあります。
+API キー(アップロード専用の合鍵)を作ると、ログインなしで署名・アップロードできます。**Mac の前で**行ってください。
+
+1. <https://appstoreconnect.apple.com> → **ユーザとアクセス** → 上のタブ **統合** → **App Store Connect API** → **チームキー** を開く
+2. **+**(キーを生成)を押し、名前に `release`、アクセスに **Admin** を選んで **生成**
+   - Admin にするのは、署名に必要な証明書やプロファイルを自動で作れるようにするためです
+3. 一覧に出た **Issuer ID** と **キー ID** をメモし、**API キーをダウンロード** を押す
+   - **ダウンロードできるのは1回だけ**です。`AuthKey_キーID.p8` というファイルが保存されます
+4. ターミナルで、ダウンロードしたファイルを決まった場所に移す(`キーID` の部分を書きかえる)
+
+   ```bash
+   mkdir -p ~/.appstoreconnect/private_keys
+   mv ~/Downloads/AuthKey_キーID.p8 ~/.appstoreconnect/private_keys/
+   ```
+
+5. 設定ファイルを作って、3つの値を書きかえる
+
+   ```bash
+   cd ~/Desktop/MyStudyApp
+   cp scripts/asc-api-key.example.env scripts/asc-api-key.env
+   open -e scripts/asc-api-key.env
+   ```
+
+6. もう一度 `./scripts/release.sh` を実行する。「App Store Connect API キーを使います」と出れば、キーが使われています
+
+> `.p8` ファイルと `scripts/asc-api-key.env` は、**だれにも見せない・どこにも貼らない**でください(Git にも入らない設定にしてあります)。
+> もし漏れたら、同じ画面でそのキーの **取り消し** を押します。
+
+---
+
 ## Xcode でエラーが出たとき(ビルドエラー)
 
 このアプリのコードは、Mac のない環境(Linux)で書いて検査しました。

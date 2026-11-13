@@ -28,3 +28,7 @@ xcuserdata/
 # ===== Supabase CLI(使う場合のみ作られる)=====
 supabase/.temp/
 supabase/.branches/
+
+# ===== App Store Connect API キー(絶対に Git に入れない)=====
+scripts/asc-api-key.env
+*.p8
