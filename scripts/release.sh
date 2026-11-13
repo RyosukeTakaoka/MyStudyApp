@@ -48,6 +48,10 @@ https://developer.apple.com/account の「メンバーシップの詳細」で�
 次のように1行足してください(ABCDE12345 の部分を自分の ID に変える):
   echo 'DEVELOPMENT_TEAM = ABCDE12345' >> Config/Secrets.xcconfig"
 fi
+if grep -Eq "^DEVELOPMENT_TEAM *= *ABCDE12345" Config/Secrets.xcconfig; then
+  fail "Team ID が見本の「ABCDE12345」のままです。自分のチーム ID に書きかえてください:
+  sed -i '' 's/^DEVELOPMENT_TEAM = .*/DEVELOPMENT_TEAM = 自分のチームID/' Config/Secrets.xcconfig"
+fi
 echo "Xcode: $(xcodebuild -version | head -1)"
 
 # iPhone などから SSH でつないでいるときは、Mac のキーチェーン(パスワードや証明書の保管庫)が
