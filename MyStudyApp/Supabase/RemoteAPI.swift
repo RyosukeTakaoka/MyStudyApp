@@ -75,7 +75,7 @@ extension RemoteAPI {
         guard !items.isEmpty else { return }
         try await supabase
             .from("items")
-            .upsert(items.map(ItemRow.init), onConflict: "id", returning: .minimal)
+            .upsert(items.map(ItemUpsertRow.init), onConflict: "id", returning: .minimal)
             .execute()
     }
 
@@ -90,7 +90,7 @@ extension RemoteAPI {
 }
 
 /// 予定1行をサーバーに送る形。日時は末尾に「Z」を付けた文字にする
-private struct ItemRow: Encodable {
+private struct ItemUpsertRow: Encodable {
     let item: PlanItem
 
     enum CodingKeys: String, CodingKey {
