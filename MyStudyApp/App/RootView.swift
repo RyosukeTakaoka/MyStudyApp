@@ -21,6 +21,7 @@ struct RootView: View {
                         SessionQueue.clearSaved()
                         NotesStore.clearSaved()
                         ItemEditQueue.clearSaved()
+                        SessionHistory.clearSaved()
                         Task { await NotificationScheduler.removeAll() }
                     }
                 }

@@ -49,7 +49,13 @@ struct StudySession: Codable, Equatable, Sendable {
         self.endReason = endReason
     }
 
-    /// 端末に保存したものを読み直すとき(保存は上の encode と同じ形)
+    /// 日時の文字を読む。小数の秒があってもなくても読める(サーバーは 2026-11-13T07:30:00+00:00 の形で返す)
+    static func parseDate(_ text: String) throws -> Date {
+        if let date = try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text) { return date }
+        return try Date.ISO8601FormatStyle().parse(text)
+    }
+
+    /// 端末に保存したもの・サーバーから読んだものを読み直すとき
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -57,9 +63,8 @@ struct StudySession: Codable, Equatable, Sendable {
         itemDate = try c.decodeIfPresent(String.self, forKey: .itemDate)
         title = try c.decode(String.self, forKey: .title)
         subject = try c.decode(String.self, forKey: .subject)
-        let style = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
-        startedAt = try style.parse(c.decode(String.self, forKey: .startedAt))
-        endedAt = try style.parse(c.decode(String.self, forKey: .endedAt))
+        startedAt = try Self.parseDate(c.decode(String.self, forKey: .startedAt))
+        endedAt = try Self.parseDate(c.decode(String.self, forKey: .endedAt))
         endReason = try c.decode(String.self, forKey: .endReason)
     }
 }

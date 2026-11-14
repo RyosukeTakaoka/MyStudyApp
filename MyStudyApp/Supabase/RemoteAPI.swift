@@ -58,6 +58,18 @@ struct RemoteAPI: Sendable {
 // MARK: - タイマーの記録
 
 extension RemoteAPI {
+    /// from〜to の時間にかかっている記録を読む(1日のグラフ用。読むだけ)
+    func fetchSessions(from: Date, to: Date) async throws -> [StudySession] {
+        let style = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        return try await supabase
+            .from("study_sessions")
+            .select("id, item_id, item_date, title, subject, started_at, ended_at, end_reason")
+            .lt("started_at", value: to.formatted(style))
+            .gt("ended_at", value: from.formatted(style))
+            .execute()
+            .value
+    }
+
     func insertSessions(_ sessions: [StudySession]) async throws {
         guard !sessions.isEmpty else { return }
         try await supabase

@@ -55,6 +55,8 @@ final class DayStore {
     private let sessions: SessionQueue
     /// まだ送っていない、アプリでの予定の編集
     private let edits: ItemEditQueue
+    /// グラフ用に残しておくタイマーの記録(テストでは nil にできる)
+    private let history: SessionHistory?
     /// 今の時刻を返す関数(テストのときに時刻を固定できるようにしている)
     private let now: () -> Date
 
@@ -70,13 +72,16 @@ final class DayStore {
     private var isStopped = false
 
     init(userId: UUID, local: LocalStore, api: PlanAPI = RemoteAPI(), sessions: SessionQueue? = nil,
-         edits: ItemEditQueue? = nil, now: @escaping () -> Date = Date.init) {
+         edits: ItemEditQueue? = nil, history: SessionHistory? = nil, keepsHistory: Bool = true,
+         now: @escaping () -> Date = Date.init) {
         self.userId = userId
         self.local = local
         self.api = api
         // 省略されたら、ふつうの保存場所を使う(初期値の式はメインスレッドの外で計算されるので、ここで作る)
         self.sessions = sessions ?? SessionQueue()
         self.edits = edits ?? ItemEditQueue()
+        // 省略されたら、ふつうの保存場所を使う(keepsHistory = false ならグラフ用の記録を残さない。テスト用)
+        self.history = history ?? (keepsHistory ? SessionHistory.shared : nil)
         self.now = now
         let today = DayKey.today(now: now())
         self.today = today
@@ -274,6 +279,7 @@ final class DayStore {
     func recordSession(_ session: StudySession?) {
         guard let session else { return }
         sessions.append(session)
+        history?.append(session, now: now())
         reloadFromLocal()
         requestSync()
     }

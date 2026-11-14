@@ -63,6 +63,10 @@ struct DayScreen: View {
                     .listRowBackground(Color.accentColor.opacity(0.12))
                 }
 
+                // 終わった日(昨日より前)だけ、勉強した時間帯の円グラフを出す(その日が終わるまでは出さない)
+                if store.selectedDate < store.today {
+                    DayChartSection(dayKey: store.selectedDate)
+                }
                 goalSection
                 progressSection
                 calendarEventsSection
