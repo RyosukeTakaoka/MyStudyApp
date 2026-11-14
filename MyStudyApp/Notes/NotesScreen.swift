@@ -89,144 +89,35 @@ private struct NoteRow: View {
     }
 }
 
-/// 資料1ページの中身
+/// 資料1ページの中身。文章は Web ページのように、部分選択・全選択・コピーができる
 struct NoteDetailScreen: View {
     let store: NotesStore
     let noteId: UUID
 
     var body: some View {
         if let note = store.note(id: noteId) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(note.category)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach(Array(NoteMarkdown.blocks(note.bodyMd).enumerated()), id: \.offset) { _, block in
-                        MarkdownBlockView(block: block) { line in
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            store.toggleCheck(noteId: noteId, line: line)
-                        }
-                    }
-                }
-                .padding()
-                .frame(maxWidth: 820, alignment: .leading)
-                .frame(maxWidth: .infinity)
-            }
+            SelectableNoteView(
+                note: note,
+                onToggleCheck: { line in store.toggleCheck(noteId: noteId, line: line) },
+                onRefresh: { await store.sync() }
+            )
+            .ignoresSafeArea(edges: .bottom)
             .navigationTitle(note.title)
             .navigationBarTitleDisplayMode(.inline)
-            .refreshable { await store.sync() }
+            .toolbar {
+                // 全文をまとめてコピーするボタン(Markdown のまま)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        UIPasteboard.general.string = note.bodyMd
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .accessibilityLabel("全文をコピー")
+                }
+            }
         } else {
             ContentUnavailableView("この資料は消されました", systemImage: "doc.text")
         }
-    }
-}
-
-/// かたまり1つの表示
-private struct MarkdownBlockView: View {
-    let block: NoteMarkdown.Block
-    let onToggle: (Int) -> Void
-
-    var body: some View {
-        switch block {
-        case .heading(let level, let text):
-            inline(text)
-                .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
-                .padding(.top, level <= 2 ? 10 : 4)
-        case .check(let line, let checked, let text, let indent):
-            Button {
-                onToggle(line)
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: checked ? "checkmark.square.fill" : "square")
-                        .foregroundStyle(checked ? Color.green : Color.secondary)
-                    inline(text)
-                        .strikethrough(checked)
-                        .foregroundStyle(checked ? Color.secondary : Color.primary)
-                        .multilineTextAlignment(.leading)
-                }
-                .padding(.leading, CGFloat(indent) * 16)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        case .bullet(let text, let indent):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(indent == 0 ? "•" : "◦")
-                inline(text)
-            }
-            .padding(.leading, CGFloat(indent) * 16)
-        case .numbered(let number, let text, let indent):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(number).")
-                    .monospacedDigit()
-                inline(text)
-            }
-            .padding(.leading, CGFloat(indent) * 16)
-        case .quote(let text):
-            inline(text)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 10)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.4)).frame(width: 3)
-                }
-        case .table(let rows):
-            TableView(rows: rows)
-        case .code(let text):
-            Text(text)
-                .font(.footnote.monospaced())
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-        case .rule:
-            Divider()
-        case .paragraph(let text):
-            inline(text)
-        }
-    }
-
-    /// **太字** や `コード`、リンクなどを反映した文字
-    private func inline(_ text: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            return Text(attributed)
-        }
-        return Text(text)
-    }
-}
-
-/// 表(1行目を見出しとして太字にする)。横に長いときは横にスクロールできる
-private struct TableView: View {
-    let rows: [[String]]
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                            cellText(cell)
-                                .font(index == 0 ? .subheadline.bold() : .subheadline)
-                                .frame(maxWidth: 260, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    if index == 0 {
-                        Divider()
-                    }
-                }
-            }
-            .padding(10)
-        }
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func cellText(_ cell: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: cell, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            return Text(attributed)
-        }
-        return Text(cell)
     }
 }
