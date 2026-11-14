@@ -15,7 +15,7 @@ struct RootView: View {
                         SwiftDataStore.shared.deleteEverything()
                         WidgetBridge.clear()
                         LiveActivityController.endAll()
-                        StudyTimer().cancel()
+                        StudyTimer().cancelAll()
                         ScreenTimeController.resetAll()
                         PlanBoardStore.clearSaved()
                         SessionQueue.clearSaved()

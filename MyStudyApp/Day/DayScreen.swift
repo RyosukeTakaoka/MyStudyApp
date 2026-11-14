@@ -15,6 +15,8 @@ struct DayScreen: View {
     @State private var showsCalendar = false
     /// タイマーまでスクロールする合図(数字が増えるたびに移動する)
     @State private var scrollToTimerRequest = 0
+    /// どのタイマーまで移動するか
+    @State private var scrollTargetItemId: UUID?
     /// 予定を足す画面を出しているか
     @State private var showsAddItem = false
     /// 直している予定(nil なら画面を出さない)
@@ -54,7 +56,7 @@ struct DayScreen: View {
                     Section {
                         NowNextCard(
                             items: store.items,
-                            isTimerRunning: timer.running != nil,
+                            runningItemIds: Set(timer.timers.map(\.itemId)),
                             onStartTimer: { startTimer(for: $0, isAuto: false) }
                         )
                     }
@@ -206,7 +208,9 @@ struct DayScreen: View {
                     // タイマーの欄が画面に作られるのを少し待ってから移動する
                     try? await Task.sleep(for: .milliseconds(80))
                     withAnimation(.easeInOut) {
-                        proxy.scrollTo(Self.timerRowID, anchor: .top)
+                        if let itemId = scrollTargetItemId {
+                            proxy.scrollTo(Self.timerRowID(itemId), anchor: .top)
+                        }
                     }
                 }
             }
@@ -323,81 +327,87 @@ struct DayScreen: View {
 
     // MARK: - タイマー
 
-    /// タイマーの欄の目印(スクロールで移動するときに使う)
-    private static let timerRowID = "timer-row"
+    /// タイマーのカードの目印(スクロールで移動するときに使う)
+    private static func timerRowID(_ itemId: UUID) -> String { "timer-\(itemId.uuidString)" }
 
+    /// 動いているタイマーのカード(いくつでも並ぶ)
     @ViewBuilder
     private var timerSection: some View {
-        if let running = timer.running {
+        ForEach(timer.timers, id: \.itemId) { running in
             Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        if running.isPaused {
-                            Label("一時停止中", systemImage: "pause.fill")
-                                .font(.caption.bold())
-                                .foregroundStyle(.orange)
-                        } else {
-                            Label(running.isAuto ? "勉強中(自動)" : "勉強中", systemImage: "timer")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        SubjectTag(subject: running.subject)
-                    }
-                    Text(running.title)
-                        .font(.title3.bold())
-                    Group {
-                        if running.isPaused {
-                            // 一時停止中は、止めたときの時間をそのまま出す
-                            Text(NowNext.clockText(running.priorSeconds + running.accumulatedSeconds))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            // style: .timer は、その時刻からの経過時間を自動で数えて表示する。
-                            // 「これまでの記録」と「一時停止」の分だけずらした時刻を渡すので、続きから数える
-                            Text(running.displayStart, style: .timer)
-                        }
-                    }
-                    .font(.system(size: 40, weight: .semibold, design: .rounded).monospacedDigit())
-                    if running.priorSeconds > 0 {
-                        Text("前回までの記録 \(NowNext.durationText(Int(running.priorSeconds / 60))) をふくむ")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // 1段目: 一時停止 / 再開(いちばん押しやすい大きなボタン)
-                    Button {
-                        togglePause()
-                    } label: {
-                        Label(running.isPaused ? "再開" : "一時停止",
-                              systemImage: running.isPaused ? "play.fill" : "pause.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(running.isPaused ? .green : .orange)
-
-                    // 2段目: 終わらせるボタン(どちらも、それまでの時間を記録する)
-                    HStack(spacing: 12) {
-                        Button {
-                            stopTimer(markDone: true)
-                        } label: {
-                            Label("完了", systemImage: "checkmark")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button {
-                            stopTimer(markDone: false)
-                        } label: {
-                            Label("記録して終了", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-                .padding(.vertical, 4)
-                .id(Self.timerRowID)
+                timerCard(running)
+                    .id(Self.timerRowID(running.itemId))
             }
         }
+    }
+
+    private func timerCard(_ running: RunningTimer) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                if running.isPaused {
+                    Label("一時停止中", systemImage: "pause.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                } else {
+                    Label(running.isAuto ? "勉強中(自動)" : "勉強中", systemImage: "timer")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                SubjectTag(subject: running.subject)
+            }
+            Text(running.title)
+                .font(.title3.bold())
+            Group {
+                if running.isPaused {
+                    // 一時停止中は、止めたときの時間をそのまま出す
+                    Text(NowNext.clockText(running.priorSeconds + running.accumulatedSeconds))
+                        .foregroundStyle(.secondary)
+                } else {
+                    // style: .timer は、その時刻からの経過時間を自動で数えて表示する。
+                    // 「これまでの記録」と「一時停止」の分だけずらした時刻を渡すので、続きから数える
+                    Text(running.displayStart, style: .timer)
+                }
+            }
+            // タイマーが2つ以上あるときは、少し小さくして画面に収まりやすくする
+            .font(.system(size: timer.timers.count > 1 ? 30 : 40, weight: .semibold, design: .rounded).monospacedDigit())
+            if running.priorSeconds > 0 {
+                Text("前回までの記録 \(NowNext.durationText(Int(running.priorSeconds / 60))) をふくむ")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // 1段目: 一時停止 / 再開(いちばん押しやすい大きなボタン)
+            Button {
+                togglePause(running.itemId)
+            } label: {
+                Label(running.isPaused ? "再開" : "一時停止",
+                      systemImage: running.isPaused ? "play.fill" : "pause.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(running.isPaused ? .green : .orange)
+
+            // 2段目: 終わらせるボタン(どちらも、それまでの時間を記録する)
+            HStack(spacing: 12) {
+                Button {
+                    stopTimer(running.itemId, markDone: true)
+                } label: {
+                    Label("完了", systemImage: "checkmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    stopTimer(running.itemId, markDone: false)
+                } label: {
+                    Label("記録して終了", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     /// タイマーを始める(ライブアクティビティも出す)
@@ -416,8 +426,17 @@ struct DayScreen: View {
         )
         timer.start(running)
         showLiveActivity(for: running)
-        if focusDuringTimer && screenTime.isReady {
-            screenTime.startForTimer(plannedEnd: plannedEnd)
+        updateFocusForTimers()
+    }
+
+    /// タイマー中の集中モード: 動いているタイマーが1つでもあればかけ、全部止まったら外す
+    private func updateFocusForTimers() {
+        let active = timer.activeTimers
+        if active.isEmpty {
+            screenTime.endForTimer()
+        } else if focusDuringTimer && screenTime.isReady {
+            // いちばん遅く終わる予定に合わせる
+            screenTime.startForTimer(plannedEnd: active.compactMap(\.plannedEnd).max())
         }
     }
 
@@ -429,33 +448,30 @@ struct DayScreen: View {
         return latest.actualMinutes ?? 0
     }
 
-    /// 一時停止 ⇄ 再開。一時停止中は、タイマーでかけた集中モードも外す
-    private func togglePause() {
-        guard let running = timer.running else { return }
+    /// 一時停止 ⇄ 再開
+    private func togglePause(_ itemId: UUID) {
+        guard let running = timer.timer(for: itemId) else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if running.isPaused {
-            timer.resume(now: Date())
-            if focusDuringTimer && screenTime.isReady {
-                screenTime.startForTimer(plannedEnd: running.plannedEnd)
-            }
+            timer.resume(itemId: itemId, now: Date())
         } else {
             // 一時停止までの区間を記録に残す
-            store.recordSession(timer.pause(now: Date()))
-            screenTime.endForTimer()
+            store.recordSession(timer.pause(itemId: itemId, now: Date()))
         }
+        updateFocusForTimers()
         // ライブアクティビティも、止まった時間/続きの時間に出し直す
-        if let updated = timer.running {
+        if let updated = timer.timer(for: itemId) {
             showLiveActivity(for: updated)
         }
     }
 
     /// タイマーを止めて、勉強時間を記録する。
     /// reason: 記録に残す止めた理由(省略すると、完了なら done、そうでなければ stop)
-    private func stopTimer(markDone: Bool, reason: String? = nil) {
-        guard let result = timer.stop(now: Date(), reason: reason ?? (markDone ? "done" : "stop")) else { return }
+    private func stopTimer(_ itemId: UUID, markDone: Bool, reason: String? = nil) {
+        guard let result = timer.stop(itemId: itemId, now: Date(), reason: reason ?? (markDone ? "done" : "stop")) else { return }
         store.recordSession(result.session)
-        LiveActivityController.endAll()
-        screenTime.endForTimer()
+        LiveActivityController.end(itemId: itemId)
+        updateFocusForTimers()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
     }
@@ -463,8 +479,8 @@ struct DayScreen: View {
     /// 自動タイマー: 予定の時間になったら始め、終了時刻を過ぎたら止める
     private func checkAutoTimer() {
         // 自動で始めたタイマーは、設定に関係なく終了時刻で止める
-        if timer.shouldAutoStop(now: Date()) {
-            stopTimer(markDone: false, reason: "auto")
+        for itemId in timer.itemIdsToAutoStop(now: Date()) {
+            stopTimer(itemId, markDone: false, reason: "auto")
         }
         guard autoTimerEnabled, scenePhase == .active else { return }
         let todayItems = store.upcomingItems(days: 0)
@@ -491,7 +507,7 @@ struct DayScreen: View {
 
     /// アプリを開き直したとき、タイマーが動いているのにライブアクティビティが消えていたら出し直す
     private func restoreLiveActivity() {
-        if let running = timer.running, !LiveActivityController.isShowing {
+        for running in timer.timers where !LiveActivityController.isShowing(itemId: running.itemId) {
             showLiveActivity(for: running)
         }
     }
@@ -685,7 +701,7 @@ struct DayScreen: View {
             item: item,
             onToggle: { toggle(item) },
             onLongPress: { startTimerByLongPress(item) },
-            isTimerRunning: timer.running?.itemId == item.id
+            isTimerRunning: timer.timer(for: item.id) != nil
         )
         // 左へスワイプすると出るボタン
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -705,14 +721,14 @@ struct DayScreen: View {
         }
     }
 
-    /// 長押しでタイマー開始。ほかの予定のタイマーが動いていたら、それを記録して止めてから始める
+    /// 長押しでタイマー開始。ほかのタイマーは止めずに、いっしょに動かす
     private func startTimerByLongPress(_ item: PlanItem) {
-        if let running = timer.running {
-            if running.itemId == item.id { return }   // 同じ予定なら何もしない
-            stopTimer(markDone: false, reason: "switch")
+        // その予定のタイマーがもうあれば、新しく始めずに、そのタイマーまで移動するだけ
+        if timer.timer(for: item.id) == nil {
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            startTimer(for: item, isAuto: false)
         }
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        startTimer(for: item, isAuto: false)
+        scrollTargetItemId = item.id
         scrollToTimerRequest += 1   // 数字が変わると、上の onChange が動いてタイマーまで移動する
     }
 

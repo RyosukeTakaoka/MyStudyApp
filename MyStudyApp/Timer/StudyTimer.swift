@@ -69,58 +69,79 @@ extension RunningTimer {
     }
 }
 
-// 勉強時間を測るタイマー。
+// 勉強時間を測るタイマー。いくつでも同時に動かせる(例: 夕食を食べながら Anki と、ほかの予定)。
+// 予定1つにつき、タイマーは1つまで。
 // 「始めた時刻」だけを覚えておき、経過時間は「今 − 始めた時刻」で計算します。
 // こうすると、アプリを閉じていても時間が正しく進みます。
 @MainActor
 @Observable
 final class StudyTimer {
-    private(set) var running: RunningTimer?
+    /// 動いている(一時停止中もふくむ)タイマー。始めた順
+    private(set) var timers: [RunningTimer] = []
 
     private let defaults: UserDefaults
-    private static let runningKey = "studyTimer.running"
+    private static let timersKey = "studyTimer.timers"
+    /// 前の版(タイマーが1つだけだったころ)の保存場所
+    private static let legacyRunningKey = "studyTimer.running"
     private static let autoStartedKey = "studyTimer.lastAutoStarted"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: Self.runningKey) {
-            running = try? JSONDecoder().decode(RunningTimer.self, from: data)
+        if let data = defaults.data(forKey: Self.timersKey),
+           let saved = try? JSONDecoder().decode([RunningTimer].self, from: data) {
+            timers = saved
+        } else if let data = defaults.data(forKey: Self.legacyRunningKey),
+                  let old = try? JSONDecoder().decode(RunningTimer.self, from: data) {
+            // 前の版で動いていたタイマーを引きつぐ
+            timers = [old]
+            defaults.removeObject(forKey: Self.legacyRunningKey)
+            save()
         }
     }
 
+    /// その予定のタイマー(無ければ nil)
+    func timer(for itemId: UUID) -> RunningTimer? {
+        timers.first { $0.itemId == itemId }
+    }
+
+    /// 一時停止していないタイマー
+    var activeTimers: [RunningTimer] { timers.filter { !$0.isPaused } }
+
+    /// タイマーを始める(同じ予定のタイマーがすでにあれば、置きかえる)
     func start(_ timer: RunningTimer) {
-        running = timer
+        timers.removeAll { $0.itemId == timer.itemId }
+        timers.append(timer)
         save()
     }
 
     /// 一時停止する(それまでの時間は覚えておく)。止めた区間の記録を返す
     @discardableResult
-    func pause(now: Date) -> StudySession? {
-        guard var timer = running, !timer.isPaused else { return nil }
+    func pause(itemId: UUID, now: Date) -> StudySession? {
+        guard let index = timers.firstIndex(where: { $0.itemId == itemId }), !timers[index].isPaused else { return nil }
+        var timer = timers[index]
         let session = timer.session(endingAt: now, reason: "pause")
         timer.accumulatedSeconds = timer.elapsedSeconds(now: now)
         timer.pausedAt = now
-        running = timer
+        timers[index] = timer
         save()
         return session
     }
 
     /// 再開する(0からではなく、止めたところから続きを数える)
-    func resume(now: Date) {
-        guard var timer = running, timer.isPaused else { return }
-        timer.startedAt = now
-        timer.pausedAt = nil
-        running = timer
+    func resume(itemId: UUID, now: Date) {
+        guard let index = timers.firstIndex(where: { $0.itemId == itemId }), timers[index].isPaused else { return }
+        timers[index].startedAt = now
+        timers[index].pausedAt = nil
         save()
     }
 
     /// タイマーを止めて、かかった分数を返す(動いていなければ nil)。一時停止していた時間はふくまない。
     /// 返すのは「今回」の分だけ(これまでの記録 priorSeconds は、すでに保存してあるのでふくめない)。
     /// 自動タイマーは、予定の終了時刻を過ぎていたら終了時刻までで計算する。
-    /// reason: 止めた理由(stop / done / auto / switch)。動いていた区間の記録も返す(一時停止中なら nil)
-    func stop(now: Date, reason: String = "stop") -> (itemId: UUID, minutes: Int, session: StudySession?)? {
-        guard let timer = running else { return nil }
-        running = nil
+    /// reason: 止めた理由(stop / done / auto)。動いていた区間の記録も返す(一時停止中なら nil)
+    func stop(itemId: UUID, now: Date, reason: String = "stop") -> (itemId: UUID, minutes: Int, session: StudySession?)? {
+        guard let index = timers.firstIndex(where: { $0.itemId == itemId }) else { return nil }
+        let timer = timers.remove(at: index)
         save()
         var end = now
         if timer.isAuto, let plannedEnd = timer.plannedEnd, plannedEnd < now {
@@ -133,23 +154,25 @@ final class StudyTimer {
         return (timer.itemId, Int((seconds / 60).rounded()), session)
     }
 
-    /// 記録せずに止める(ログアウトのときなど)
-    func cancel() {
-        running = nil
+    /// 記録せずに全部止める(ログアウトのときなど)
+    func cancelAll() {
+        timers = []
         save()
     }
 
-    /// 自動タイマーを止めるべきか(予定の終了時刻を過ぎた)
-    func shouldAutoStop(now: Date) -> Bool {
-        guard let timer = running, timer.isAuto, let plannedEnd = timer.plannedEnd else { return false }
-        return now >= plannedEnd
+    /// 予定の終了時刻を過ぎた、自動タイマーの予定
+    func itemIdsToAutoStop(now: Date) -> [UUID] {
+        timers.filter { timer in
+            guard timer.isAuto, let plannedEnd = timer.plannedEnd else { return false }
+            return now >= plannedEnd
+        }.map(\.itemId)
     }
 
-    /// 自動で始めるべき予定。今の時間帯の予定が未チェックで、まだ自動で始めていなければ返す
+    /// 自動で始めるべき予定。今の時間帯の予定が未チェックで、タイマーがまだ無く、まだ自動で始めていなければ返す
     func autoStartCandidate(items: [PlanItem], dayKey: String, nowMinutes: Int) -> PlanItem? {
-        guard running == nil else { return nil }
         guard let current = NowNext.compute(items: items, nowMinutes: nowMinutes).current,
-              !current.done
+              !current.done,
+              timer(for: current.id) == nil
         else { return nil }
         // 同じ予定で2回目は自動で始めない(自分で止めたのに、また始まらないように)
         guard defaults.string(forKey: Self.autoStartedKey) != Self.autoKey(dayKey, current.id) else { return nil }
@@ -165,10 +188,8 @@ final class StudyTimer {
     }
 
     private func save() {
-        if let running, let data = try? JSONEncoder().encode(running) {
-            defaults.set(data, forKey: Self.runningKey)
-        } else {
-            defaults.removeObject(forKey: Self.runningKey)
+        if let data = try? JSONEncoder().encode(timers) {
+            defaults.set(data, forKey: Self.timersKey)
         }
     }
 }

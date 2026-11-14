@@ -3,8 +3,8 @@ import SwiftUI
 // 画面のいちばん上に出す「今 → 次」のカード。
 struct NowNextCard: View {
     let items: [PlanItem]
-    /// タイマーが動いているか(動いていれば開始ボタンを出さない)
-    var isTimerRunning = false
+    /// タイマーが動いている予定(その予定には開始ボタンを出さない)
+    var runningItemIds: Set<UUID> = []
     /// 「タイマー開始」が押されたとき
     var onStartTimer: ((PlanItem) -> Void)? = nil
 
@@ -35,7 +35,7 @@ struct NowNextCard: View {
                         Text(detail(for: current, prefix: "あと", minutes: state.minutesLeft))
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
-                        if !isTimerRunning, !current.done, let onStartTimer {
+                        if !runningItemIds.contains(current.id), !current.done, let onStartTimer {
                             Button {
                                 onStartTimer(current)
                             } label: {

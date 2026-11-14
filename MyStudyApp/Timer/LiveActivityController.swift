@@ -5,11 +5,11 @@ import Foundation
 // 経過時間は表示側が自動で数えるので、始めたあとに更新する必要はありません。
 @MainActor
 enum LiveActivityController {
-    /// 表示を始める(前の表示は消して、いつも1つだけにする)
+    /// 表示を始める(タイマーごとに1つ。同じ予定の表示があれば、出し直す)
     static func start(_ timer: RunningTimer, nextTitle: String?, nextStart: Date?) {
         // 設定アプリでライブアクティビティがオフになっていたら何もしない
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        endAll()
+        end(itemId: timer.itemId)
 
         let attributes = StudyActivityAttributes(itemId: timer.itemId.uuidString)
         let state = StudyActivityAttributes.ContentState(
@@ -32,6 +32,20 @@ enum LiveActivityController {
         }
     }
 
+    /// その予定の表示を消す
+    static func end(itemId: UUID) {
+        for activity in Activity<StudyActivityAttributes>.activities where activity.attributes.itemId == itemId.uuidString {
+            Task {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
+
+    /// その予定の表示があるか
+    static func isShowing(itemId: UUID) -> Bool {
+        Activity<StudyActivityAttributes>.activities.contains { $0.attributes.itemId == itemId.uuidString }
+    }
+
     /// 表示中のものを全部消す
     static func endAll() {
         for activity in Activity<StudyActivityAttributes>.activities {
@@ -41,8 +55,4 @@ enum LiveActivityController {
         }
     }
 
-    /// 表示中のものがあるか
-    static var isShowing: Bool {
-        !Activity<StudyActivityAttributes>.activities.isEmpty
-    }
 }
