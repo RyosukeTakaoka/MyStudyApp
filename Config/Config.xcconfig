@@ -16,8 +16,7 @@ MARKETING_VERSION = 1.1
 CURRENT_PROJECT_VERSION = 2
 
 // ---- スクリーンタイム(集中モード)----
-// Xcode から ▶ で入れる版(Debug)では使えます。TestFlight の版(Release)では、
-// Apple の「Family Controls (Distribution)」の許可が下りるまで使えません(docs/SETUP_GUIDE.md 参照)。
+// Apple の「Family Controls (Distribution)」の許可が下りたので、TestFlight の版(Release)でも使えます。
 
 // まず「空」を入れておく。Secrets.xcconfig がまだ無くてもビルドが通るようにするため。
 SUPABASE_HOST =

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5A0000000000000000000A01 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5A0000000000000000000F02 /* Supabase */; };
+		5A0000000000000000000A03 /* MyStudyFocusMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A000000000000000000010A /* MyStudyFocusMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000109 /* MyStudyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -36,6 +37,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				5A0000000000000000000A02 /* MyStudyWidgetExtension.appex in Embed Foundation Extensions */,
+				5A0000000000000000000A03 /* MyStudyFocusMonitor.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -165,7 +167,6 @@
 				5A0000000000000000000301 /* Frameworks */,
 				5A0000000000000000000801 /* Resources */,
 				5A0000000000000000000901 /* Embed Foundation Extensions */,
-				5A0000000000000000000904 /* Embed Focus Monitor (Debug only) */,
 			);
 			buildRules = (
 			);
@@ -298,28 +299,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		5A0000000000000000000904 /* Embed Focus Monitor (Debug only) */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Embed Focus Monitor (Debug only)";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# スクリーンタイムの監視用の拡張機能を、Xcode から ▶ で入れる版(Debug)にだけ入れる。\n# TestFlight 用の版(Release)に入れると、Apple の許可(Family Controls Distribution)が無いため、アップロードを断られる。\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  mkdir -p \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}\"\n  ditto \"${BUILT_PRODUCTS_DIR}/MyStudyFocusMonitor.appex\" \"${TARGET_BUILD_DIR}/${PLUGINS_FOLDER_PATH}/MyStudyFocusMonitor.appex\"\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5A0000000000000000000701 /* Sources */ = {
@@ -486,7 +465,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp-ScreenTime.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -515,9 +493,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/MyStudyApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyApp-ScreenTime.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -619,7 +596,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5A0000000000000000000102 /* Config.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = Config/MyStudyFocusMonitor.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Config/MyStudyFocusMonitor-ScreenTime.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/MyStudyFocusMonitor-Info.plist";

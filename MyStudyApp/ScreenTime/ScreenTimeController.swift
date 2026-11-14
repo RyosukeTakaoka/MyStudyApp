@@ -43,7 +43,7 @@ final class ScreenTimeController {
         } catch {
             errorMessage = """
             スクリーンタイムの許可を得られませんでした。
-            TestFlight から入れた版では、Apple の許可が下りるまでこの機能は使えません(Xcode から入れた版では使えます)。
+            iPhone の 設定 → スクリーンタイム がオンになっているか確かめて、もう一度ためしてください。
 
             \(error.localizedDescription)
             """

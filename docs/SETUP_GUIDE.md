@@ -399,18 +399,18 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
 
 どれも「終わりの時刻」が必ず決まっているので、アプリを開けなくなっても、時間が来れば自動で外れます。
 
-### 大事な注意: TestFlight の版では、まだ使えません
+### TestFlight の版でも使えます
 
-スクリーンタイムの機能は、Apple が特別な許可(Family Controls)を出したアプリしか配布できません。
+Apple から Family Controls (Distribution) の許可が下りたので、TestFlight の版にもスクリーンタイムの機能と監視用の拡張機能(MyStudyFocusMonitor)が入ります。
+初めて許可が下りたあとは、下の「許可が下りたあとに1回だけやること」をしてください。
 
-- **Xcode から ▶ で iPhone に入れた版:** すぐに使えます(有料の開発者アカウントなら、入れてから1年間使えます)
-- **TestFlight の版:** Apple に申請して許可が下りるまで、この機能は「使えません」と表示されます(ほかの機能はそのまま使えます)。
-  申請しても、返事まで数週間かかることがよくあります
+#### 許可が下りたあとに1回だけやること
 
-当面は、**Xcode から ▶ で入れた版を使う**のがおすすめです。
-
-> 監視用の拡張機能(MyStudyFocusMonitor)は、Xcode から ▶ で入れる版にだけ入れています(Build Phases の「Embed Focus Monitor (Debug only)」)。
-> 拡張機能が入っていると、App Store Connect に「Missing Entitlement(com.apple.developer.family-controls)」と言われて、アップロードを断られるためです。
+1. <https://developer.apple.com/account/resources/identifiers/list> を開く
+2. 一覧から **`com.ryosuketakaoka.MyStudyApp`** を選ぶ
+3. 上のタブ **Additional Capabilities**(追加の機能)を開き、**Family Controls (Distribution)** にチェックを入れて **Save**(確認が出たら **Confirm**)
+4. 一覧に戻り、**`com.ryosuketakaoka.MyStudyApp.FocusMonitor`** でも 2〜3 と同じことをする
+5. ターミナルで `./scripts/release.sh` を実行する(署名の設定は、スクリプトが自動で作り直します)
 
 ### あなたがやること
 
@@ -426,11 +426,6 @@ Xcode から直接入れたアプリは、数日〜1年で使えなくなった�
       - 「教育」などのカテゴリをまるごと選んでも反映されません。アプリを1つずつ選んでください
    3. 「タイマー中」「予定ブロックの時間(自動)」を好みでオンにする
 6. 試しに **25分 集中する** を押し、ほかのアプリが開けなくなること、**今すぐ終える** で戻ることを確認する
-
-### TestFlight の版でも使いたくなったら
-
-1. Apple の申請フォーム(<https://developer.apple.com/contact/request/family-controls-distribution>)から、**アプリ本体**と**監視用の拡張機能**(`あなたのBundle ID.FocusMonitor`)の両方について申請する
-2. 許可が下りたら教えてください。TestFlight の版にも入れるための、手作業の手順をお伝えします
 
 ---
 
