@@ -1,11 +1,31 @@
-# Claude 向け説明書: Supabase に予定を書き込む方法
+# Claude 向け説明書: MyStudyApp のデータベースに書く・読む方法
 
 このファイルは、**別のチャットの Claude** が、このアプリ(MyStudyApp)のデータベースに
-「翌日の予定」を書き込むときに読む説明書です。
+予定・計画・資料を書き込んだり、勉強の実績を読んだりするときに読む説明書です。
 
 - データベース: Supabase(Postgres)
-- アプリ: iPhone アプリが同じデータベースを読み、ユーザーがタップでチェックを付ける
-- あなた(Claude)の役割: ユーザーと相談して決めた予定を、SQL で `days` と `items` に書き込む
+- アプリ: iPhone アプリが同じデータベースを読み、ユーザーがチェック・タイマー・ふりかえりを記録する
+- あなた(Claude)の役割: ユーザーと相談して決めたことを、SQL で書き込む。実績を読んで、次の計画に生かす
+- **アーティファクト(HTML のページやチェックリスト)や Claude Doc は作らず、すべてこのデータベースに入れてください**
+
+### 何をどこに書くか
+
+| 書きたいもの | 書く場所 | アプリでの見え方 | 章 |
+|---|---|---|---|
+| 1日の目標 | `days.goal` | 「今日」タブの上 | 3 |
+| その日の予定・やること(手順と注意つき) | `items`(`replace_plan` 関数) | 「今日」タブ。タップでチェック、長押しでタイマー | 1・3 |
+| 週の計画(行事・やること・バッファ) | `weeks` / `week_goals`(`replace_week_plan` 関数) | 「週・月」タブの週カード。箱を押して記録 | 6 |
+| 期間の計画(そもそも終わる?・月の流れ) | `term_plans`(`replace_term_plan` 関数) | 「週・月」タブのいちばん上 | 6 |
+| 予定ではない読み物(ルール・方針・振り返り) | `notes`(`upsert_note` 関数) | 「資料」タブ | 8 |
+| 読むだけ: チェック・実績・ふりかえり | `items.done` / `actual_minutes` / `study_sessions` / `days.reflection` | — | 7 |
+
+### ユーザーがアプリでできること(計画を立てるときの前提)
+
+- 予定をチェックする、タイマーで時間を測る(**いくつでも同時に動かせる**。一時停止・再開もできる)
+- 予定の時間にアプリを開くと、自動でタイマーが始まり、終了時刻で止まる(自動タイマー)
+- 予定を自分で **足す・直す・明日に回す・消す**(そうした予定は `source = 'app'` になる。9章)
+- 週のやることの箱を1つずつ押す、資料の □ を押す
+- 勉強中は、スクリーンタイムで Anki など以外のアプリを制限する(集中モード)。予定の時間に自動でかけることもできる
 
 > **書き込み方は2通りあります**
 > - (A) Supabase のコネクタ(MCP)がつながっている場合: あなたが SQL を直接実行する
@@ -42,7 +62,7 @@
 | `title` | text | 内容(例「Anki 鑑定評価基準」) | 必ず指定 |
 | `subject` | text | 科目。下の「推奨値」から選ぶ。省略すると `'その他'` | 指定する |
 | `sort_order` | integer | 並び順(小さいほど上)。10, 20, 30… と10きざみで付ける | 指定する |
-| `source` | text | `'claude'` = Claude が入れた / `'app'` = アプリで手入力。省略すると `'claude'` | **省略する**(`'claude'` になる) |
+| `source` | text | `'claude'` = Claude が入れた / `'app'` = ユーザーがアプリで入れた・直した(9章)。省略すると `'claude'` | **省略する**(`'claude'` になる) |
 | `done` | boolean | チェック済みか(ユーザーがアプリで付ける) | **触らない** |
 | `done_at` | timestamptz | チェックした日時(自動) | **触らない** |
 | `actual_minutes` | integer | 実際にかかった分数(アプリのタイマーが記録する) | **触らない** |
@@ -84,55 +104,24 @@ select id, email, created_at from auth.users order by created_at;
 ### 手順(毎回この順番で)
 
 1. **日付を確認する**: ユーザーが「明日」と言ったら、日本時間での具体的な日付(例 `2026-11-13`)に直す
-2. **その日にすでに入っている行を見る**(下の「確認用 SQL」)
-3. **入れ直し用 SQL** を、`begin;` 〜 `commit;` でひとまとめにして実行する
+2. **その日にすでに入っている行を見る**(下の「確認用 SQL」)。`source = 'app'`(ユーザーが自分で入れた予定)と重ならないように組む
+3. **`replace_plan` 関数で入れる**(下の「いちばんおすすめ」)
 4. もう一度「確認用 SQL」を実行して、結果をユーザーに見せる
 
 ### 確認用 SQL(書き込む前と後に実行)
 
 ```sql
-select kind, start_time, end_time, title, subject, source, done, sort_order
+select kind, start_time, end_time, title, subject, source, done, actual_minutes, note, sort_order
 from items
 where user_id = 'ここにuser_idを入れる'
   and date = '2026-11-13'
-order by kind, start_time, sort_order;
+order by kind, start_time nulls last, sort_order;
 ```
 
 `done = true` の行や `source = 'app'` の行がすでにある場合、それらは**残ります**。
 同じ内容をもう一度 INSERT すると二重になるので、**残る行と重なる予定は入れない**でください。
 
-### 入れ直し用 SQL(まるごとコピーして、値だけ書き換える)
-
-```sql
-begin;
-
--- (1) 1日の目標を書く。すでに行があるときは goal だけ更新する(ふりかえりは消えない)
-insert into days (user_id, date, goal)
-values ('ここにuser_idを入れる', '2026-11-13', '鑑定評価基準 総論を1周する')
-on conflict (user_id, date) do update set goal = excluded.goal;
-
--- (2) その日の「Claude が入れた」「まだチェックされていない」行だけを消す
---     ※ この3つの条件(date / source = 'claude' / done = false)は絶対に外さない
-delete from items
-where user_id = 'ここにuser_idを入れる'
-  and date = '2026-11-13'
-  and source = 'claude'
-  and done = false;
-
--- (3) 新しい予定を入れる
-insert into items (user_id, date, kind, start_time, end_time, title, subject, sort_order)
-values
-  -- 例1: 時間つきの予定(block)
-  ('ここにuser_idを入れる', '2026-11-13', 'block', '16:30', '17:30', 'Anki 鑑定評価基準',       '鑑定理論', 10),
-  -- 例2: 時間つきの予定(block)
-  ('ここにuser_idを入れる', '2026-11-13', 'block', '19:00', '20:30', '民法 物権 過去問 10問',   '民法',     20),
-  -- 例3: 時間なしのやること(task)。start_time と end_time は null にする
-  ('ここにuser_idを入れる', '2026-11-13', 'task',  null,    null,    '英語の宿題を提出する',    '学校',     30);
-
-commit;
-```
-
-### いちばんおすすめ: 関数で入れ直す(コネクタから使うときはこちら)
+### いちばんおすすめ: 関数で入れ直す
 
 チャットのコネクタから `DELETE` 文を実行すると、確認ボタンが出ずに失敗することがあります。
 そのため、**入れ直しと削除は、次の2つの関数を `select` で呼んでください。**
@@ -165,6 +154,39 @@ select public.remove_plan_items('ここにuser_idを入れる', array['消した
 - **手順と注意の書き方のコツ:** 1つの手順は1つの動作にして、短く書く(例「10分タイマーで解く」)。順番が大事なものは `steps`、気をつけることは `cautions` に分ける
 - 1行でもまちがいがあると、関数全体が取り消されて何も変わりません(エラー文を読んで直してから、もう一度呼ぶ)
 
+### 参考: 関数を使わずに入れ直す(ユーザーが SQL Editor に貼って実行するときだけ)
+
+コネクタからは `DELETE` が失敗することがあるので、ふだんは上の関数を使ってください。
+
+```sql
+begin;
+
+-- (1) 1日の目標を書く。すでに行があるときは goal だけ更新する(ふりかえりは消えない)
+insert into days (user_id, date, goal)
+values ('ここにuser_idを入れる', '2026-11-13', '鑑定評価基準 総論を1周する')
+on conflict (user_id, date) do update set goal = excluded.goal;
+
+-- (2) その日の「Claude が入れた」「まだチェックされていない」行だけを消す
+--     ※ この3つの条件(date / source = 'claude' / done = false)は絶対に外さない
+delete from items
+where user_id = 'ここにuser_idを入れる'
+  and date = '2026-11-13'
+  and source = 'claude'
+  and done = false;
+
+-- (3) 新しい予定を入れる
+insert into items (user_id, date, kind, start_time, end_time, title, subject, sort_order)
+values
+  -- 例1: 時間つきの予定(block)
+  ('ここにuser_idを入れる', '2026-11-13', 'block', '16:30', '17:30', 'Anki 鑑定評価基準',       '鑑定理論', 10),
+  -- 例2: 時間つきの予定(block)
+  ('ここにuser_idを入れる', '2026-11-13', 'block', '19:00', '20:30', '民法 物権 過去問 10問',   '民法',     20),
+  -- 例3: 時間なしのやること(task)。start_time と end_time は null にする
+  ('ここにuser_idを入れる', '2026-11-13', 'task',  null,    null,    '英語の宿題を提出する',    '学校',     30);
+
+commit;
+```
+
 ### 予定を1件だけ追加したいとき
 
 ```sql
@@ -175,12 +197,14 @@ values ('ここにuser_idを入れる', '2026-11-13', 'block', '21:00', '21:30',
 ### 予定の時間や内容を1件だけ直したいとき
 
 消して入れ直すより、UPDATE のほうが安全です(チェックの記録がそのまま残ります)。
+**直してよいのは `source = 'claude'` の行だけ**です(ユーザーが自分で入れた・直した予定は動かさない)。
 
 ```sql
 update items
 set start_time = '17:00', end_time = '18:00'
 where user_id = 'ここにuser_idを入れる'
   and date = '2026-11-13'
+  and source = 'claude'
   and title = 'Anki 鑑定評価基準';
 ```
 
@@ -200,6 +224,8 @@ where user_id = 'ここにuser_idを入れる'
 7. **テーブルの形を変えない**(`alter table`、`drop table`、`truncate`、ポリシーやトリガーの変更など)。
    変更が必要だと思ったら、実行せずにユーザーに提案してください。
 8. **`auth` スキーマには読み取り(`select`)以外をしない。**
+9. **`study_sessions`(タイマーの記録)と `week_goals.done_boxes`(週の箱)には書き込まない。** アプリが記録するものです。
+10. **資料(`notes`)を上書きするときは、今の本文を読んでから書く。** ユーザーが □ を押した `[x]` を消さないようにします(8章)。
 
 ## 5. エラーが出たとき
 
@@ -211,6 +237,9 @@ where user_id = 'ここにuser_idを入れる'
 | `violates check constraint "items_kind_check"` | `kind` が `'block'` `'task'` 以外 | どちらかに直す |
 | `null value in column "user_id"` | `user_id` を指定していない | 2章の方法で調べて指定する |
 | `violates foreign key constraint` | `user_id` の値がまちがっている | 2章の SQL で正しい `id` を確認する |
+| `過去の日付(…)は入れ直せません` | `replace_plan` に昨日以前の日付を渡した | 今日以降の日付にする(過去の予定は記録なので変えない) |
+| `p_week_start(…)は月曜日にしてください` | `replace_week_plan` の週の始まりが月曜でない | その週の月曜日の日付にする |
+| `violates check constraint "notes_slug_check"` | 資料の slug に大文字・日本語・空白がある | 英小文字・数字・ハイフンだけにする(例 `busy-minimum`) |
 
 ---
 
@@ -292,11 +321,14 @@ select * from public.replace_week_plan(
 |---|---|
 | `item_id` / `item_date` / `title` / `subject` | どの予定のタイマーか(題名と科目は、その時点の写し) |
 | `started_at` / `ended_at` | 始めた・止めた時刻(**世界標準時**。日本時間にするときは `at time zone 'Asia/Tokyo'`) |
-| `end_reason` | 止めた理由: `pause`(一時停止)/ `stop`(記録して終了)/ `done`(完了)/ `auto`(予定の終了時刻で自動終了)/ `switch`(別の予定に切りかえ) |
+| `end_reason` | 止めた理由: `pause`(一時停止)/ `stop`(記録して終了)/ `done`(完了)/ `auto`(予定の終了時刻で自動終了)/ `switch`(古い版で別の予定に切りかえたとき。今は記録されない) |
 | `minutes` | その区間の長さ(分、小数1けた。自動で計算される) |
 
 - 実績は、タイマーを**止めたとき**(一時停止・終了)に記録されます。動いている途中の分は、まだ入っていません
 - 電波がない場所で止めた分は、アプリが次につながったときに送られます
+- **タイマーは同時にいくつも動かせます**(例: 夕食 30分 のあいだに Anki 10分)。時間が重なった区間は、それぞれの予定に記録されます。
+  1日の「勉強した合計時間」を出すときは、重なりを二重に数えないように気をつけてください(例: 夕食などの勉強でない予定は合計から外す)
+- 同じ予定でタイマーを何回か使うと、`actual_minutes` はその合計になります
 
 ### 予定と実績をくらべる(1週間ぶん)
 
