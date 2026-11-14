@@ -12,6 +12,9 @@ struct MainTabView: View {
 
             PlanBoardScreen()
                 .tabItem { Label("週・月", systemImage: "rectangle.stack") }
+
+            NotesScreen()
+                .tabItem { Label("資料", systemImage: "doc.text") }
         }
     }
 }

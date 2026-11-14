@@ -19,6 +19,8 @@ struct RootView: View {
                         ScreenTimeController.resetAll()
                         PlanBoardStore.clearSaved()
                         SessionQueue.clearSaved()
+                        NotesStore.clearSaved()
+                        ItemEditQueue.clearSaved()
                         Task { await NotificationScheduler.removeAll() }
                     }
                 }

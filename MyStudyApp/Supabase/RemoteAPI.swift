@@ -68,6 +68,81 @@ extension RemoteAPI {
     }
 }
 
+// MARK: - アプリでの予定の編集
+
+extension RemoteAPI {
+    func upsertItems(_ items: [PlanItem]) async throws {
+        guard !items.isEmpty else { return }
+        try await supabase
+            .from("items")
+            .upsert(items.map(ItemRow.init), onConflict: "id", returning: .minimal)
+            .execute()
+    }
+
+    func deleteItems(ids: [UUID]) async throws {
+        guard !ids.isEmpty else { return }
+        try await supabase
+            .from("items")
+            .delete(returning: .minimal)
+            .in("id", values: ids)
+            .execute()
+    }
+}
+
+/// 予定1行をサーバーに送る形。日時は末尾に「Z」を付けた文字にする
+private struct ItemRow: Encodable {
+    let item: PlanItem
+
+    enum CodingKeys: String, CodingKey {
+        case id, date, kind, title, subject, source, done, note, steps, cautions
+        case startTime = "start_time"
+        case endTime = "end_time"
+        case sortOrder = "sort_order"
+        case doneAt = "done_at"
+        case actualMinutes = "actual_minutes"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(item.id, forKey: .id)
+        try c.encode(item.date, forKey: .date)
+        try c.encode(item.kind, forKey: .kind)
+        try c.encode(item.startTime, forKey: .startTime)
+        try c.encode(item.endTime, forKey: .endTime)
+        try c.encode(item.title, forKey: .title)
+        try c.encode(item.subject, forKey: .subject)
+        try c.encode(item.sortOrder, forKey: .sortOrder)
+        try c.encode(item.source, forKey: .source)
+        try c.encode(item.done, forKey: .done)
+        try c.encode(item.doneAt?.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)), forKey: .doneAt)
+        try c.encode(item.actualMinutes, forKey: .actualMinutes)
+        try c.encode(item.note, forKey: .note)
+        try c.encode(item.steps, forKey: .steps)
+        try c.encode(item.cautions, forKey: .cautions)
+    }
+}
+
+// MARK: - 資料
+
+extension RemoteAPI: NotesAPI {
+    func fetchNotes() async throws -> [Note] {
+        try await supabase
+            .from("notes")
+            .select("id, slug, title, category, body_md, pinned, sort_order")
+            .execute()
+            .value
+    }
+
+    /// 本文だけを書きかえる(チェックを押したとき)
+    func updateNoteBody(id: UUID, bodyMd: String) async throws {
+        try await supabase
+            .from("notes")
+            .update(["body_md": bodyMd], returning: .minimal)
+            .eq("id", value: id)
+            .execute()
+    }
+}
+
 // MARK: - 週次・期間の計画
 
 extension RemoteAPI: PlanBoardAPI {

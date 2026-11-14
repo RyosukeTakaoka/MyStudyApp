@@ -15,6 +15,10 @@ struct DayScreen: View {
     @State private var showsCalendar = false
     /// タイマーまでスクロールする合図(数字が増えるたびに移動する)
     @State private var scrollToTimerRequest = 0
+    /// 予定を足す画面を出しているか
+    @State private var showsAddItem = false
+    /// 直している予定(nil なら画面を出さない)
+    @State private var editingItem: PlanItem?
     /// 集中モード(スクリーンタイム)
     @State private var screenTime = ScreenTimeController()
     @State private var showsFocusSettings = false
@@ -132,6 +136,20 @@ struct DayScreen: View {
             .sheet(isPresented: $showsFocusSettings, onDismiss: rescheduleFocus) {
                 FocusSettingsView(screenTime: screenTime)
             }
+            // 予定を足す画面
+            .sheet(isPresented: $showsAddItem) {
+                ItemEditorSheet(original: nil, date: store.selectedDate) { draft in
+                    store.addItem(date: draft.date, kind: draft.isBlock ? "block" : "task",
+                                  startTime: draft.startTimeText, endTime: draft.endTimeText,
+                                  title: draft.trimmedTitle, subject: draft.subject, note: draft.noteOrNil)
+                }
+            }
+            // 予定を直す画面
+            .sheet(item: $editingItem) { item in
+                ItemEditorSheet(original: item, date: item.date) { draft in
+                    store.updateItem(draft.applied(to: item))
+                }
+            }
             .onChange(of: remindersEnabled) { _, enabled in
                 Task {
                     if enabled, !(await NotificationScheduler.requestPermission()) {
@@ -245,6 +263,13 @@ struct DayScreen: View {
                 Image(systemName: "calendar")
             }
             .accessibilityLabel("カレンダー")
+
+            Button {
+                showsAddItem = true
+            } label: {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("予定を足す")
 
             Menu {
                 Toggle(isOn: $autoTimerEnabled) {
@@ -662,6 +687,22 @@ struct DayScreen: View {
             onLongPress: { startTimerByLongPress(item) },
             isTimerRunning: timer.running?.itemId == item.id
         )
+        // 左へスワイプすると出るボタン
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if store.canDelete(item) {
+                Button("削除", systemImage: "trash", role: .destructive) {
+                    store.deleteItem(item)
+                }
+            }
+            Button("明日へ", systemImage: "arrow.turn.down.right") {
+                store.moveToTomorrow(item)
+            }
+            .tint(.orange)
+            Button("編集", systemImage: "pencil") {
+                editingItem = item
+            }
+            .tint(.blue)
+        }
     }
 
     /// 長押しでタイマー開始。ほかの予定のタイマーが動いていたら、それを記録して止めてから始める

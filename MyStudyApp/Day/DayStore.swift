@@ -53,6 +53,8 @@ final class DayStore {
     private let api: PlanAPI
     /// まだ送っていないタイマーの記録
     private let sessions: SessionQueue
+    /// まだ送っていない、アプリでの予定の編集
+    private let edits: ItemEditQueue
     /// 今の時刻を返す関数(テストのときに時刻を固定できるようにしている)
     private let now: () -> Date
 
@@ -68,12 +70,13 @@ final class DayStore {
     private var isStopped = false
 
     init(userId: UUID, local: LocalStore, api: PlanAPI = RemoteAPI(), sessions: SessionQueue? = nil,
-         now: @escaping () -> Date = Date.init) {
+         edits: ItemEditQueue? = nil, now: @escaping () -> Date = Date.init) {
         self.userId = userId
         self.local = local
         self.api = api
         // 省略されたら、ふつうの保存場所を使う(初期値の式はメインスレッドの外で計算されるので、ここで作る)
         self.sessions = sessions ?? SessionQueue()
+        self.edits = edits ?? ItemEditQueue()
         self.now = now
         let today = DayKey.today(now: now())
         self.today = today
@@ -195,6 +198,74 @@ final class DayStore {
             current.needsSync = true
             local.save(items: [current])
         }
+        reloadFromLocal()
+        requestSync()
+    }
+
+    // MARK: - アプリでの予定の編集
+
+    /// 予定を足す(アプリで入れた予定として。Claude の入れ直しでは消えない)
+    func addItem(date: String, kind: String, startTime: String?, endTime: String?,
+                 title: String, subject: String, note: String?) {
+        let sameDay = local.items(on: [date]).map(\.item)
+        let item = PlanItem(
+            id: UUID(), date: date, kind: kind, startTime: startTime, endTime: endTime,
+            title: title, subject: subject, sortOrder: (sameDay.map(\.sortOrder).max() ?? 0) + 10,
+            source: "app", done: false, doneAt: nil, actualMinutes: nil, note: note
+        )
+        saveEdited(item)
+    }
+
+    /// 予定を直す。Claude が入れた予定も、直したら「アプリで入れた予定」になる(Claude の入れ直しで消えないように)
+    func updateItem(_ edited: PlanItem) {
+        guard let current = local.item(id: edited.id) else { return }
+        var item = edited
+        // チェックと実績は、編集画面ではなく端末の最新の値を使う
+        item.done = current.item.done
+        item.doneAt = current.item.doneAt
+        item.actualMinutes = current.item.actualMinutes
+        item.source = "app"
+        saveEdited(item, needsSync: current.needsSync)
+    }
+
+    /// 終わらなかった予定を明日に回す。明日に同じ内容の予定を作り、元の予定のメモに「→ 11/15(日)へ」と書く
+    func moveToTomorrow(_ item: PlanItem) {
+        let tomorrow = DayKey.adding(1, to: item.date)
+        let tomorrowItems = local.items(on: [tomorrow]).map(\.item)
+        let copy = PlanItem(
+            id: UUID(), date: tomorrow, kind: item.kind, startTime: item.startTime, endTime: item.endTime,
+            title: item.title, subject: item.subject,
+            sortOrder: (tomorrowItems.map(\.sortOrder).max() ?? 0) + 10,
+            source: "app", done: false, doneAt: nil, actualMinutes: nil, note: item.note,
+            steps: item.steps, cautions: item.cautions
+        )
+        saveEdited(copy)
+
+        guard let current = local.item(id: item.id) else { return }
+        var original = current.item
+        let mark = "→ \(DayKey.shortText(tomorrow))へ"
+        if !(original.note ?? "").contains(mark) {
+            original.note = [original.note, mark].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " ")
+        }
+        original.source = "app"
+        saveEdited(original, needsSync: current.needsSync)
+    }
+
+    /// 予定を消す(アプリで入れた・まだチェックしていない予定だけ)
+    func deleteItem(_ item: PlanItem) {
+        guard let current = local.item(id: item.id), current.item.source == "app", !current.item.done else { return }
+        local.deleteItems(ids: [item.id])
+        edits.add(.delete(item.id))
+        reloadFromLocal()
+        requestSync()
+    }
+
+    /// 消してよい予定か(画面で「削除」を出すかどうか)
+    func canDelete(_ item: PlanItem) -> Bool { item.source == "app" && !item.done }
+
+    private func saveEdited(_ item: PlanItem, needsSync: Bool = false) {
+        local.save(items: [LocalItem(item: item, needsSync: needsSync)])
+        edits.add(.upsert(item))
         reloadFromLocal()
         requestSync()
     }
@@ -321,6 +392,21 @@ final class DayStore {
 
     /// 送る: 端末にたまっている「未送信」の変更を、サーバーへ送る
     private func pushPendingChanges() async throws {
+        // アプリで足した・直した・消した予定(チェックより先に送る。新しい予定がサーバーに無いとチェックを送れないため)
+        let unsentEdits = edits.pending
+        if !unsentEdits.isEmpty {
+            let upserts = unsentEdits.compactMap { edit -> PlanItem? in
+                if case .upsert(let item) = edit { return item } else { return nil }
+            }
+            let deletes = unsentEdits.compactMap { edit -> UUID? in
+                if case .delete(let id) = edit { return id } else { return nil }
+            }
+            try await api.upsertItems(upserts)
+            try await api.deleteItems(ids: deletes)
+            guard !isStopped else { return }
+            edits.remove(unsentEdits)
+        }
+
         // タイマーの記録
         let unsentSessions = sessions.pending
         if !unsentSessions.isEmpty {
@@ -378,7 +464,11 @@ final class DayStore {
 
         // 通信が終わった「今」の端末内データと合体させる
         // (通信中にタップされたチェックは「未送信」の印が付いているので、消されない)
-        let itemChanges = SyncMerge.items(server: serverItems, local: local.items(on: dates))
+        var itemChanges = SyncMerge.items(server: serverItems, local: local.items(on: dates))
+        // まだ送っていない編集がある予定は、端末側をそのまま残す(サーバーの古い内容で上書きしない・消さない)
+        let editing = edits.pendingIds
+        itemChanges.save.removeAll { editing.contains($0.item.id) }
+        itemChanges.deleteIds.removeAll { editing.contains($0) }
         local.save(items: itemChanges.save)
         local.deleteItems(ids: itemChanges.deleteIds)
 
@@ -400,7 +490,7 @@ final class DayStore {
         if resetDraft || !wasDirty {
             reflectionDraft = savedReflection
         }
-        pendingCount = local.pendingItems().count + local.pendingDays().count + sessions.pending.count
+        pendingCount = local.pendingItems().count + local.pendingDays().count + sessions.pending.count + edits.pending.count
         publishSnapshotIfChanged()
     }
 
