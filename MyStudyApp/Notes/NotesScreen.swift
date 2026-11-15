@@ -89,19 +89,18 @@ private struct NoteRow: View {
     }
 }
 
-/// 資料1ページの中身。文章は Web ページのように、部分選択・全選択・コピーができる
+/// 資料1ページの中身。文章は Web ページのように選んでコピーでき、Anki カードはワンタップでコピーできる
 struct NoteDetailScreen: View {
     let store: NotesStore
     let noteId: UUID
 
     var body: some View {
         if let note = store.note(id: noteId) {
-            SelectableNoteView(
+            NoteBodyView(
                 note: note,
                 onToggleCheck: { line in store.toggleCheck(noteId: noteId, line: line) },
                 onRefresh: { await store.sync() }
             )
-            .ignoresSafeArea(edges: .bottom)
             .navigationTitle(note.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

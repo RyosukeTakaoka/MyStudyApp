@@ -1,16 +1,129 @@
 import SwiftUI
 import UIKit
 
-// 資料の本文を、Web ページのように自由に選べる形で表示する部品。
-// iPhone のメモや Safari と同じ文章の部品(UITextView)を使うので、
-// 長押しで部分選択・範囲の調整・全選択・コピー・調べる などがそのまま使えます。
-// □(チェック)は押すとチェックが切りかわります。
-struct SelectableNoteView: UIViewRepresentable {
+// 資料の本文の表示。
+//   ・ふつうの文章 … Web ページのように、部分選択・全選択・コピーができる(SelectableTextBlock)
+//   ・Anki カード   … 表と裏に「コピー」ボタンがあり、ワンタップでコピーできる(AnkiCardView)
+struct NoteBodyView: View {
     let note: Note
-    /// □ が押されたとき(本文の何行目か)
+    /// □ や「追加済み」が押されたとき(本文の何行目か)
     let onToggleCheck: (Int) -> Void
     /// 下に引っぱって更新したとき
     let onRefresh: () async -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(note.category)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(Array(NoteMarkdown.chunks(NoteMarkdown.blocks(note.bodyMd)).enumerated()), id: \.offset) { _, chunk in
+                    switch chunk {
+                    case .text(let blocks):
+                        SelectableTextBlock(text: NoteAttributedText.make(blocks: blocks), onToggleCheck: onToggleCheck)
+                    case .card(let card):
+                        AnkiCardView(card: card) { onToggleCheck(card.line) }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity)
+        }
+        .refreshable { await onRefresh() }
+    }
+}
+
+/// Anki カード1枚: 見出し・追加済みのチェック・表と裏(それぞれコピーのボタンつき)
+struct AnkiCardView: View {
+    let card: NoteMarkdown.AnkiCard
+    let onToggleAdded: () -> Void
+
+    /// 今「コピーしました」と出している側("表" / "裏")
+    @State private var copied: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(card.label)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    onToggleAdded()
+                } label: {
+                    Label("追加済み", systemImage: card.added ? "checkmark.square.fill" : "square")
+                        .font(.subheadline)
+                        .foregroundStyle(card.added ? Color.green : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(card.added ? "追加済み" : "まだ")
+            }
+
+            side("表", text: card.front)
+            if !card.back.isEmpty {
+                // 点線の区切り
+                Line()
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(Color.secondary.opacity(0.4))
+                    .frame(height: 1)
+                side("裏", text: card.back)
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(card.added ? Color.green.opacity(0.5) : Color.secondary.opacity(0.25))
+        }
+        // 追加済みのカードは、少しうすくする
+        .opacity(card.added ? 0.6 : 1)
+    }
+
+    /// 「表」「裏」の1段: 文章(選んでコピーもできる)と、ワンタップのコピーボタン
+    private func side(_ name: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(name)
+                .font(.subheadline.bold())
+                .foregroundStyle(.secondary)
+            Text(text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            Button {
+                UIPasteboard.general.string = text
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                copied = name
+                // 1.5秒たったら、ボタンの文字を元に戻す
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    if copied == name { copied = nil }
+                }
+            } label: {
+                Text(copied == name ? "コピーしました" : "\(name)をコピー")
+                    .font(.subheadline.bold())
+                    .frame(minWidth: 96)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(copied == name ? .green : .accentColor)
+        }
+    }
+
+    /// 横線の形
+    private struct Line: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { path in
+                path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+            }
+        }
+    }
+}
+
+/// ふつうの文章のかたまり。Web ページのように選べる・コピーできる(高さは中身に合わせて自動)
+struct SelectableTextBlock: UIViewRepresentable {
+    let text: NSAttributedString
+    let onToggleCheck: (Int) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -18,40 +131,38 @@ struct SelectableNoteView: UIViewRepresentable {
         let textView = UITextView()
         textView.isEditable = false          // 書きかえはできない
         textView.isSelectable = true         // 選べる・コピーできる
-        textView.isScrollEnabled = true
-        textView.alwaysBounceVertical = true
-        textView.backgroundColor = .systemBackground
-        textView.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 40, right: 16)
+        textView.isScrollEnabled = false     // スクロールは外側にまかせ、高さを中身に合わせる
+        textView.backgroundColor = .clear
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
         textView.adjustsFontForContentSizeCategory = true
         // リンクの色は本文の中で決める(□ を青い下線つきにしないため)
         textView.linkTextAttributes = [:]
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.delegate = context.coordinator
-
-        let refresh = UIRefreshControl()
-        refresh.addTarget(context.coordinator, action: #selector(Coordinator.refresh(_:)), for: .valueChanged)
-        textView.refreshControl = refresh
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.parent = self
         // 中身が変わったときだけ描き直す(選んでいる範囲が勝手に消えないように)
-        let key = note.category + "\u{0}" + note.bodyMd
-        guard key != context.coordinator.renderedKey else { return }
-        context.coordinator.renderedKey = key
-        let offset = textView.contentOffset
-        textView.attributedText = NoteAttributedText.make(note: note)
-        textView.layoutIfNeeded()
-        // □ を押して描き直したときに、読んでいた場所がずれないようにする
-        textView.setContentOffset(offset, animated: false)
+        if !textView.attributedText.isEqual(to: text) {
+            textView.attributedText = text
+        }
+    }
+
+    /// 横幅に合わせて、必要な高さを計算する
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? 320
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: ceil(size.height))
     }
 
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
-        var parent: SelectableNoteView
-        var renderedKey: String?
+        var parent: SelectableTextBlock
 
-        init(parent: SelectableNoteView) {
+        init(parent: SelectableTextBlock) {
             self.parent = parent
         }
 
@@ -73,13 +184,6 @@ struct SelectableNoteView: UIViewRepresentable {
             }
             return UITextItem.MenuConfiguration(menu: defaultMenu)
         }
-
-        @objc func refresh(_ control: UIRefreshControl) {
-            Task { @MainActor in
-                await parent.onRefresh()
-                control.endRefreshing()
-            }
-        }
     }
 }
 
@@ -97,14 +201,9 @@ enum NoteAttributedText {
         return Int(url.lastPathComponent)
     }
 
-    static func make(note: Note) -> NSAttributedString {
+    static func make(blocks: [NoteMarkdown.Block]) -> NSAttributedString {
         let out = NSMutableAttributedString()
-        appendLine(out, NSAttributedString(string: note.category, attributes: [
-            .font: UIFont.preferredFont(forTextStyle: .caption1),
-            .foregroundColor: UIColor.secondaryLabel,
-        ]), style: paragraph(after: 8))
-
-        for block in NoteMarkdown.blocks(note.bodyMd) {
+        for block in blocks {
             switch block {
             case .heading(let level, let text):
                 let style: UIFont.TextStyle = level == 1 ? .title2 : level == 2 ? .title3 : .headline
@@ -169,7 +268,14 @@ enum NoteAttributedText {
                     .font: UIFont.preferredFont(forTextStyle: .footnote),
                     .foregroundColor: UIColor.separator,
                 ]), style: paragraph(before: 6, after: 6))
+
+            case .card:
+                break   // カードは AnkiCardView で別に表示する
             }
+        }
+        // 最後の改行は取る(かたまりの下に、よけいなすき間ができないように)
+        if out.string.hasSuffix("\n") {
+            out.deleteCharacters(in: NSRange(location: out.length - 1, length: 1))
         }
         return out
     }

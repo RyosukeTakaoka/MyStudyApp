@@ -31,6 +31,32 @@ enum NoteMarkdown {
         case code(text: String)
         case rule
         case paragraph(text: String)
+        /// Anki カード(表・裏と、コピーのボタンつきで表示する)
+        case card(AnkiCard)
+    }
+
+    /// Anki カード1枚。本文ではこう書く:
+    ///
+    ///     ```anki [ ] ① 問1
+    ///     表の文
+    ///     ---
+    ///     裏の文(何行でもよい)
+    ///     ```
+    ///
+    /// [ ] は「追加済み」のチェック([x] で追加済み)。そのあとが見出し
+    struct AnkiCard: Equatable {
+        /// 本文の何行目か(``` の行)。「追加済み」を押したとき、この行を書きかえる
+        let line: Int
+        let added: Bool
+        let label: String
+        let front: String
+        let back: String
+    }
+
+    /// 画面に出すまとまり: ふつうの文章のかたまり / カード1枚
+    enum Chunk: Equatable {
+        case text([Block])
+        case card(AnkiCard)
     }
 
     /// 本文をかたまりに分ける
@@ -52,16 +78,22 @@ enum NoteMarkdown {
             let trimmed = raw.trimmingCharacters(in: .whitespaces)
             let indent = (raw.prefix { $0 == " " }.count) / 2
 
-            // コード(``` で囲まれた部分)
+            // コード(``` で囲まれた部分)。```anki なら Anki カード
             if trimmed.hasPrefix("```") {
                 flushParagraph()
+                let fenceLine = i
+                let info = trimmed.dropFirst(3).trimmingCharacters(in: .whitespaces)
                 var code: [String] = []
                 i += 1
                 while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
                     code.append(lines[i])
                     i += 1
                 }
-                blocks.append(.code(text: code.joined(separator: "\n")))
+                if info.lowercased().hasPrefix("anki") {
+                    blocks.append(.card(ankiCard(info: String(info.dropFirst(4)), body: code, line: fenceLine)))
+                } else {
+                    blocks.append(.code(text: code.joined(separator: "\n")))
+                }
                 i += 1
                 continue
             }
@@ -107,11 +139,39 @@ enum NoteMarkdown {
         return blocks
     }
 
-    /// line 行目のチェックを切りかえた本文を返す(チェックの行でなければそのまま)
+    /// かたまりを、画面に出すまとまりに分ける(カードの前後で文章を区切る)
+    static func chunks(_ blocks: [Block]) -> [Chunk] {
+        var result: [Chunk] = []
+        var text: [Block] = []
+        for block in blocks {
+            if case .card(let card) = block {
+                if !text.isEmpty { result.append(.text(text)); text = [] }
+                result.append(.card(card))
+            } else {
+                text.append(block)
+            }
+        }
+        if !text.isEmpty { result.append(.text(text)) }
+        return result
+    }
+
+    /// line 行目のチェックを切りかえた本文を返す(チェックやカードの行でなければそのまま)
     static func toggleCheck(in body: String, line: Int) -> String {
         var lines = body.components(separatedBy: "\n")
         guard lines.indices.contains(line) else { return body }
         let raw = lines[line]
+        // Anki カードの「追加済み」
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        if trimmed.lowercased().hasPrefix("```anki") {
+            if let range = raw.range(of: "[ ]") {
+                lines[line] = raw.replacingCharacters(in: range, with: "[x]")
+            } else if let range = raw.range(of: "[x]") ?? raw.range(of: "[X]") {
+                lines[line] = raw.replacingCharacters(in: range, with: "[ ]")
+            } else if let range = raw.range(of: "```anki", options: .caseInsensitive) {
+                lines[line] = raw.replacingCharacters(in: range, with: "```anki [x]")
+            }
+            return lines.joined(separator: "\n")
+        }
         for (from, to) in [("[ ]", "[x]"), ("[x]", "[ ]"), ("[X]", "[ ]")] {
             if let range = raw.range(of: from), checkItem(raw.trimmingCharacters(in: .whitespaces)) != nil {
                 lines[line] = raw.replacingCharacters(in: range, with: to)
@@ -121,16 +181,40 @@ enum NoteMarkdown {
         return body
     }
 
-    /// チェックの数(できた数, 全部の数)
+    /// チェックの数(できた数, 全部の数)。Anki カードの「追加済み」もふくむ
     static func checkProgress(_ body: String) -> (done: Int, total: Int) {
         var done = 0, total = 0
         for block in blocks(body) {
-            if case .check(_, let checked, _, _) = block {
+            switch block {
+            case .check(_, let checked, _, _):
                 total += 1
                 if checked { done += 1 }
+            case .card(let card):
+                total += 1
+                if card.added { done += 1 }
+            default:
+                break
             }
         }
         return (done, total)
+    }
+
+    /// ```anki の行のあと(例 " [x] ① 問1")と中身から、カードを作る
+    private static func ankiCard(info: String, body: [String], line: Int) -> AnkiCard {
+        var rest = info.trimmingCharacters(in: .whitespaces)
+        var added = false
+        if rest.hasPrefix("[x]") || rest.hasPrefix("[X]") {
+            added = true
+            rest = String(rest.dropFirst(3))
+        } else if rest.hasPrefix("[ ]") {
+            rest = String(rest.dropFirst(3))
+        }
+        // 「---」だけの行で、表と裏を分ける
+        let parts = body.split(omittingEmptySubsequences: false) { $0.trimmingCharacters(in: .whitespaces) == "---" }
+        let front = (parts.first ?? []).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        let back = parts.dropFirst().map { $0.joined(separator: "\n") }.joined(separator: "\n---\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return AnkiCard(line: line, added: added, label: rest.trimmingCharacters(in: .whitespaces), front: front, back: back)
     }
 
     // MARK: - 中で使う道具
