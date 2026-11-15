@@ -5,12 +5,26 @@ import UIKit
 struct PlanBoardScreen: View {
     @State private var store = PlanBoardStore()
     @Environment(\.scenePhase) private var scenePhase
+    /// 画面の横幅の種類(iPad の広い画面だと .regular)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isWide: Bool { horizontalSizeClass == .regular }
+
+    /// 週のカードの列。広い画面では、1枚 380pt 以上の幅で入るだけならべる
+    private var weekColumns: [GridItem] {
+        if isWide {
+            return [GridItem(.adaptive(minimum: 380), spacing: 16, alignment: .top)]
+        } else {
+            return [GridItem(.flexible(), alignment: .top)]
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
+                    // 週は多くても10枚ほどなので、ふつうの VStack で十分(「今週」へのスクロールも確実になる)
+                    VStack(alignment: .leading, spacing: 16) {
                         if let problem = store.problem {
                             Label(problem, systemImage: "exclamationmark.triangle")
                                 .font(.footnote)
@@ -33,21 +47,24 @@ struct PlanBoardScreen: View {
                             TermPlanView(term: term)
                         }
 
-                        ForEach(store.sections) { section in
-                            WeekCard(
-                                section: section,
-                                isCurrent: section.week.weekStart == store.currentWeekStart,
-                                onTapBox: { box, goal in
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    store.tapBox(box, of: goal)
-                                }
-                            )
-                            .id(section.id)
+                        // 週のカード。iPhone は1列、iPad は横に2つ(画面が広ければ3つ)ならべる
+                        LazyVGrid(columns: weekColumns, alignment: .leading, spacing: 16) {
+                            ForEach(store.sections) { section in
+                                WeekCard(
+                                    section: section,
+                                    isCurrent: section.week.weekStart == store.currentWeekStart,
+                                    onTapBox: { box, goal in
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        store.tapBox(box, of: goal)
+                                    }
+                                )
+                                .id(section.id)
+                            }
                         }
                     }
                     .padding()
-                    // iPad や横向きでも読みやすい幅にする
-                    .frame(maxWidth: 820)
+                    // 読みやすい幅にする(iPad は横にならべるぶん広め)
+                    .frame(maxWidth: isWide ? 1400 : 820)
                     .frame(maxWidth: .infinity)
                 }
                 .background(Color(uiColor: .systemGroupedBackground))

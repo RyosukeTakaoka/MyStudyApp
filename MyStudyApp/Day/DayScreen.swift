@@ -35,6 +35,8 @@ struct DayScreen: View {
     @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
     /// アプリが前面にあるか・裏に回ったか
     @Environment(\.scenePhase) private var scenePhase
+    /// 画面の横幅の種類(iPad の広い画面だと .regular、iPhone の縦向きだと .compact)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(auth: AuthStore, userId: UUID, local: LocalStore) {
         self.auth = auth
@@ -46,33 +48,7 @@ struct DayScreen: View {
         NavigationStack {
             // ScrollViewReader: 「この行まで移動して」とスクロールを命令できるようにする入れ物
             ScrollViewReader { proxy in
-            List {
-                syncStatusSection
-                focusSection
-                timerSection
-
-                // 「今 → 次」は、今日を表示しているときだけ出す
-                if store.isToday && !store.blocks.isEmpty {
-                    Section {
-                        NowNextCard(
-                            items: store.items,
-                            runningItemIds: Set(timer.timers.map(\.itemId)),
-                            onStartTimer: { startTimer(for: $0, isAuto: false) }
-                        )
-                    }
-                    .listRowBackground(Color.accentColor.opacity(0.12))
-                }
-
-                // 終わった日(昨日より前)だけ、勉強した時間帯の円グラフを出す(その日が終わるまでは出さない)
-                if store.selectedDate < store.today {
-                    DayChartSection(dayKey: store.selectedDate)
-                }
-                goalSection
-                progressSection
-                calendarEventsSection
-                itemSections
-                reflectionSection
-            }
+            dayLists
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .confirmationDialog("ログアウトしますか?", isPresented: $showsSignOutConfirm, titleVisibility: .visible) {
@@ -223,6 +199,74 @@ struct DayScreen: View {
         // この画面が閉じられたら(ログアウト)、同期を止める
         .onAppear { store.setActive(true) }
         .onDisappear { store.setActive(false) }
+    }
+
+    // MARK: - 画面の並べ方(iPhone は1列、iPad は2列)
+
+    /// iPhone: 今までどおり1列に全部ならべる。
+    /// iPad(横幅が広いとき): 左に「タイマー・今→次・予定」、右に「グラフ・目標・進み具合・カレンダー・ふりかえり」。
+    @ViewBuilder
+    private var dayLists: some View {
+        if horizontalSizeClass == .regular {
+            // GeometryReader: 画面の幅を読みとる入れ物(右の列の幅を決めるのに使う)
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    List {
+                        syncStatusSection
+                        focusSection
+                        timerSection
+                        nowNextSection
+                        itemSections
+                    }
+                    Divider()
+                    List {
+                        chartSection
+                        goalSection
+                        progressSection
+                        calendarEventsSection
+                        reflectionSection
+                    }
+                    // 右の列は画面の4割くらい(広すぎず狭すぎず)
+                    .frame(width: min(420, max(320, geometry.size.width * 0.4)))
+                }
+            }
+        } else {
+            List {
+                syncStatusSection
+                focusSection
+                timerSection
+                nowNextSection
+                chartSection
+                goalSection
+                progressSection
+                calendarEventsSection
+                itemSections
+                reflectionSection
+            }
+        }
+    }
+
+    /// 「今 → 次」は、今日を表示しているときだけ出す
+    @ViewBuilder
+    private var nowNextSection: some View {
+        if store.isToday && !store.blocks.isEmpty {
+            Section {
+                NowNextCard(
+                    items: store.items,
+                    runningItemIds: Set(timer.timers.map(\.itemId)),
+                    onStartTimer: { startTimer(for: $0, isAuto: false) }
+                )
+            }
+            .listRowBackground(Color.accentColor.opacity(0.12))
+        }
+    }
+
+    /// 終わった日(昨日より前)だけ、勉強した時間帯の円グラフを出す(その日が終わるまでは出さない)
+    @ViewBuilder
+    private var chartSection: some View {
+        if store.selectedDate < store.today {
+            DayChartSection(dayKey: store.selectedDate)
+        }
     }
 
     // MARK: - 上のバー(日付の切り替えとメニュー)

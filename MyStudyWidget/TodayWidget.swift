@@ -80,6 +80,7 @@ struct TodayWidget: Widget {
         .description("「今 → 次」と進み具合を表示します。大きいサイズでは、その場でチェックできます。")
         .supportedFamilies([
             .systemSmall, .systemMedium, .systemLarge,                         // ホーム画面
+            .systemExtraLarge,                                                 // iPad のホーム画面(特大)
             .accessoryCircular, .accessoryRectangular, .accessoryInline,       // ロック画面
         ])
     }
@@ -100,6 +101,7 @@ struct TodayWidgetView: View {
             case .systemSmall: SmallView(entry: entry)
             case .systemMedium: MediumView(entry: entry)
             case .systemLarge: LargeView(entry: entry)
+            case .systemExtraLarge: ExtraLargeView(entry: entry)
             case .accessoryCircular: CircularView(entry: entry)
             case .accessoryRectangular: RectangularView(entry: entry)
             case .accessoryInline: InlineView(entry: entry)
@@ -256,6 +258,45 @@ private struct LargeView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
+        }
+    }
+}
+
+/// 特大(iPad だけ): 左に「今 → 次」、右に予定の一覧(その場でチェックできる)
+private struct ExtraLargeView: View {
+    let entry: TodayEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 10) {
+                NowNextBlock(entry: entry)
+                if let goal = entry.goal, !goal.isEmpty {
+                    Text(goal)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+                ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: 260, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 8) {
+                if entry.items.isEmpty {
+                    Text("今日の予定はありません")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(entry.items.prefix(7)) { item in
+                    WidgetItemRow(item: item)
+                }
+                if entry.items.count > 7 {
+                    Text("ほか \(entry.items.count - 7) 件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

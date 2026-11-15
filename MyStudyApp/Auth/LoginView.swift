@@ -30,6 +30,7 @@ struct LoginView: View {
             // ダークモードでは白いボタン、ライトモードでは黒いボタンにする
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 50)
+            .frame(maxWidth: 400)   // iPad で横に広がりすぎないようにする
             .disabled(auth.isWorking)
             // 配色が変わったらボタンを作り直す(スタイルが切りかわらないことがあるため)
             .id(colorScheme)

@@ -7,43 +7,75 @@ struct NotesScreen: View {
     @State private var searchText = ""
     @Environment(\.scenePhase) private var scenePhase
 
+    /// 画面の横幅の種類(iPad の広い画面だと .regular)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// iPad で右側に表示している資料
+    @State private var selectedNoteId: UUID?
+
     var body: some View {
-        NavigationStack {
-            List {
-                if let problem = store.problem {
-                    Section {
-                        Label(problem, systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+        if horizontalSizeClass == .regular {
+            // iPad: 左に一覧、右に本文(「メモ」アプリのような2列の画面)
+            NavigationSplitView {
+                // selection: 一覧で押した資料の id が selectedNoteId に入る
+                decorated(List(selection: $selectedNoteId) { listContent })
+            } detail: {
+                if let id = selectedNoteId {
+                    NoteDetailScreen(store: store, noteId: id)
+                        .id(id)   // 資料を切りかえたら、表示を作り直す(前の資料のスクロール位置を引きずらない)
+                } else {
+                    ContentUnavailableView("資料を選んでください", systemImage: "doc.text",
+                                           description: Text("左の一覧から読みたい資料を押してください。"))
                 }
-                if !store.hasLoadedOnce {
-                    HStack {
-                        Spacer()
-                        ProgressView("読み込み中…")
-                        Spacer()
+            }
+        } else {
+            // iPhone: 一覧から押すと、本文の画面に進む
+            NavigationStack {
+                decorated(List { listContent })
+                    .navigationDestination(for: UUID.self) { id in
+                        NoteDetailScreen(store: store, noteId: id)
                     }
-                } else if store.notes.isEmpty {
-                    ContentUnavailableView(
-                        "資料がありません",
-                        systemImage: "doc.text",
-                        description: Text("Claude に資料ページを作ってもらうと、ここに表示されます。")
-                    )
-                }
-                ForEach(filteredSections) { section in
-                    Section(section.title) {
-                        ForEach(section.notes) { note in
-                            NavigationLink(value: note.id) {
-                                NoteRow(note: note)
-                            }
-                        }
+            }
+        }
+    }
+
+    /// 一覧の中身(iPhone と iPad で共通)
+    @ViewBuilder
+    private var listContent: some View {
+        if let problem = store.problem {
+            Section {
+                Label(problem, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        if !store.hasLoadedOnce {
+            HStack {
+                Spacer()
+                ProgressView("読み込み中…")
+                Spacer()
+            }
+        } else if store.notes.isEmpty {
+            ContentUnavailableView(
+                "資料がありません",
+                systemImage: "doc.text",
+                description: Text("Claude に資料ページを作ってもらうと、ここに表示されます。")
+            )
+        }
+        ForEach(filteredSections) { section in
+            Section(section.title) {
+                ForEach(section.notes) { note in
+                    NavigationLink(value: note.id) {
+                        NoteRow(note: note)
                     }
                 }
             }
+        }
+    }
+
+    /// 一覧につける共通の設定(題名・検索・引っぱって更新・同期)
+    private func decorated(_ list: some View) -> some View {
+        list
             .navigationTitle("資料")
-            .navigationDestination(for: UUID.self) { id in
-                NoteDetailScreen(store: store, noteId: id)
-            }
             // 題名と本文から探せる
             .searchable(text: $searchText, prompt: "資料を検索")
             .refreshable { await store.sync() }
@@ -51,7 +83,6 @@ struct NotesScreen: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await store.sync() } }
             }
-        }
     }
 
     private var filteredSections: [NoteSection] {
