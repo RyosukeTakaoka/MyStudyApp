@@ -72,6 +72,7 @@ struct DayScreen: View {
                 // ウィジェット用のデータが変わったら、共有フォルダに書き出す
                 store.onSnapshotChanged = { WidgetBridge.publish($0) }
                 store.applyWidgetToggles(SharedStore.takePendingToggles())
+                applyWidgetTimerEvents()
                 store.setOnline(network.isOnline)
                 store.requestSync()
                 restoreLiveActivity()
@@ -166,6 +167,7 @@ struct DayScreen: View {
                 case .active:
                     // 開き直したら、ウィジェットでのチェックを取りこみ、日付の変化を確認して同期する
                     store.applyWidgetToggles(SharedStore.takePendingToggles())
+                    applyWidgetTimerEvents()
                     store.refreshToday()
                     store.requestSync()
                     screenTime.refresh()
@@ -177,6 +179,10 @@ struct DayScreen: View {
                 @unknown default:
                     break
                 }
+            }
+            // ウィジェットのボタンでタイマーが一時停止・終了されたとき
+            .onReceive(NotificationCenter.default.publisher(for: .studyTimerChangedFromWidget)) { _ in
+                applyWidgetTimerEvents()
             }
             // 電波がつながった/切れたとき(つながった瞬間に、たまっていた変更を送る)
             .onChange(of: network.isOnline) { _, online in
@@ -508,6 +514,25 @@ struct DayScreen: View {
         updateFocusForTimers()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
+    }
+
+    /// ウィジェットのボタンで変わったタイマーを読み直し、止めた区間・勉強時間を記録に取りこむ
+    private func applyWidgetTimerEvents() {
+        let events = TimerWidgetActions.takeEvents()
+        timer.reload()
+        for event in events {
+            store.recordSession(event.session)
+            switch event.action {
+            case .stop:
+                LiveActivityController.end(itemId: event.itemId)
+                store.recordStudy(itemId: event.itemId, minutes: event.minutes ?? 0, markDone: event.markDone)
+            case .pause, .resume:
+                if let updated = timer.timer(for: event.itemId) {
+                    LiveActivityController.update(updated)
+                }
+            }
+        }
+        updateFocusForTimers()
     }
 
     /// 自動タイマー: 予定の時間になったら始め、終了時刻を過ぎたら止める

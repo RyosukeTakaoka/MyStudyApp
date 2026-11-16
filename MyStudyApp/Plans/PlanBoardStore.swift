@@ -36,9 +36,14 @@ final class PlanBoardStore {
     private let now: () -> Date
     private var syncAgain = false
 
-    init(api: PlanBoardAPI = RemoteAPI(), fileURL: URL? = PlanBoardStore.defaultFileURL, now: @escaping () -> Date = Date.init) {
+    /// ウィジェット用のデータを書く場所(テストでは nil にして書かない)
+    private let widgetDir: URL?
+
+    init(api: PlanBoardAPI = RemoteAPI(), fileURL: URL? = PlanBoardStore.defaultFileURL,
+         widgetDir: URL? = AppGroup.containerURL, now: @escaping () -> Date = Date.init) {
         self.api = api
         self.fileURL = fileURL
+        self.widgetDir = widgetDir
         self.now = now
         if let fileURL, let data = try? Data(contentsOf: fileURL),
            let saved = try? JSONDecoder().decode(PlanBoardCache.self, from: data) {
@@ -51,6 +56,25 @@ final class PlanBoardStore {
     }
 
     /// 保存場所(アプリの書類フォルダの中)
+    /// ウィジェット用のデータを作る(今週と来週)
+    nonisolated static func widgetSnapshot(sections: [WeekSection], currentWeekStart: String) -> WeekWidgetSnapshot {
+        let weeks = sections.filter { $0.week.weekStart >= currentWeekStart }.prefix(2).map { section in
+            WeekWidgetSnapshot.Week(
+                weekStart: section.week.weekStart,
+                label: section.week.label,
+                subtitle: section.week.subtitle,
+                events: section.week.events,
+                goals: section.groups.flatMap { group in
+                    group.goals.map { goal in
+                        WeekWidgetSnapshot.Goal(group: group.name, title: goal.title,
+                                                target: goal.targetCount, doneBoxes: goal.doneBoxes)
+                    }
+                }
+            )
+        }
+        return WeekWidgetSnapshot(weeks: Array(weeks))
+    }
+
     nonisolated static var defaultFileURL: URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("plan-board.json")
@@ -145,6 +169,8 @@ final class PlanBoardStore {
     private func rebuild() {
         terms = cache.terms
         sections = WeekSection.build(weeks: cache.weeks, goals: cache.goals)
+        // 「今週の計画」ウィジェットに、今週と来週の分を渡す
+        WeekWidgetStore.write(Self.widgetSnapshot(sections: sections, currentWeekStart: currentWeekStart), in: widgetDir)
     }
 
     private func save() {

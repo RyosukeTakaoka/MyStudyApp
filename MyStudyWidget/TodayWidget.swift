@@ -81,21 +81,13 @@ struct TodayWidget: Widget {
         .supportedFamilies(Self.families)
     }
 
-    /// 対応する大きさの一覧
+    /// 対応する大きさの一覧(iPhone の特大〔たて長〕は WidgetFamily.withExtraLargePortrait で足す)
     private static var families: [WidgetFamily] {
-        var list: [WidgetFamily] = [
+        WidgetFamily.withExtraLargePortrait([
             .systemSmall, .systemMedium, .systemLarge,                         // ホーム画面
             .systemExtraLarge,                                                 // iPad のホーム画面(特大・横長)
             .accessoryCircular, .accessoryRectangular, .accessoryInline,       // ロック画面
-        ]
-        // iOS 27 で増えた、iPhone の特大(たて長・ホーム画面1ページ分)。
-        // #if compiler: Xcode 27 より古い Xcode では、この名前を知らないのでとばす
-        #if compiler(>=6.4)
-        if #available(iOS 27.0, *) {
-            list.append(.systemExtraLargePortrait)
-        }
-        #endif
-        return list
+        ])
     }
 }
 
@@ -109,7 +101,7 @@ struct TodayWidgetView: View {
             Text("アプリを開いてログインしてください")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else if isExtraLargePortrait {
+        } else if family.isExtraLargePortrait {
             ExtraLargePortraitView(entry: entry)
         } else {
             switch family {
@@ -123,18 +115,6 @@ struct TodayWidgetView: View {
             default: SmallView(entry: entry)
             }
         }
-    }
-}
-
-/// 特大(たて長)かどうか。iOS 27 より前では、いつも false
-extension TodayWidgetView {
-    var isExtraLargePortrait: Bool {
-        #if compiler(>=6.4)
-        if #available(iOS 27.0, *) {
-            return family == .systemExtraLargePortrait
-        }
-        #endif
-        return false
     }
 }
 
@@ -188,7 +168,7 @@ private struct NowNextBlock: View {
 }
 
 /// チェックボタンつきの1行(押すとアプリを開かずにチェックできる)
-private struct WidgetItemRow: View {
+struct WidgetItemRow: View {
     let item: PlanItem
 
     var body: some View {

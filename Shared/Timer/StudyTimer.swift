@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 /// 動いているタイマーの情報。アプリを終了しても消えないように、端末に保存します。
 ///
@@ -80,13 +83,19 @@ final class StudyTimer {
     private(set) var timers: [RunningTimer] = []
 
     private let defaults: UserDefaults
-    private static let timersKey = "studyTimer.timers"
+    private static let timersKey = TimerWidgetKind.timersKey
     /// 前の版(タイマーが1つだけだったころ)の保存場所
     private static let legacyRunningKey = "studyTimer.running"
     private static let autoStartedKey = "studyTimer.lastAutoStarted"
 
-    init(defaults: UserDefaults = .standard) {
+    /// defaults: タイマーを保存する場所。ふだんは App Group(アプリとウィジェットの共有の場所)。
+    ///   ウィジェットのボタンからも、同じタイマーを一時停止・終了できるようにするため
+    /// legacyDefaults: 前の版で保存していた場所(アプリだけの場所)。残っていれば引っこす
+    init(defaults: UserDefaults = AppGroup.defaults, legacyDefaults: UserDefaults? = .standard) {
         self.defaults = defaults
+        if let legacyDefaults, legacyDefaults !== defaults, defaults.data(forKey: Self.timersKey) == nil {
+            Self.moveOldData(from: legacyDefaults, to: defaults)
+        }
         if let data = defaults.data(forKey: Self.timersKey),
            let saved = try? JSONDecoder().decode([RunningTimer].self, from: data) {
             timers = saved
@@ -96,6 +105,26 @@ final class StudyTimer {
             timers = [old]
             defaults.removeObject(forKey: Self.legacyRunningKey)
             save()
+        }
+    }
+
+    /// 前の版の保存場所から、新しい保存場所へ引っこす
+    private static func moveOldData(from old: UserDefaults, to new: UserDefaults) {
+        for key in [timersKey, legacyRunningKey, autoStartedKey] {
+            if let value = old.object(forKey: key) {
+                new.set(value, forKey: key)
+                old.removeObject(forKey: key)
+            }
+        }
+    }
+
+    /// 保存してある内容を読み直す(ウィジェットのボタンでタイマーが変わったときに使う)
+    func reload() {
+        if let data = defaults.data(forKey: Self.timersKey),
+           let saved = try? JSONDecoder().decode([RunningTimer].self, from: data) {
+            timers = saved
+        } else {
+            timers = []
         }
     }
 
@@ -192,5 +221,22 @@ final class StudyTimer {
         if let data = try? JSONEncoder().encode(timers) {
             defaults.set(data, forKey: Self.timersKey)
         }
+        // タイマーのウィジェットを描き直してもらう
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: TimerWidgetKind.kind)
+        #endif
+    }
+}
+
+/// タイマーのウィジェットの名前(アプリとウィジェットで同じものを使う)
+enum TimerWidgetKind {
+    static let kind = "TimerWidget"
+    /// タイマーを保存する名前
+    static let timersKey = "studyTimer.timers"
+
+    /// 保存してあるタイマーを読む(ウィジェットの表示用。書きかえはしない)
+    static func savedTimers(defaults: UserDefaults = AppGroup.defaults) -> [RunningTimer] {
+        guard let data = defaults.data(forKey: timersKey) else { return [] }
+        return (try? JSONDecoder().decode([RunningTimer].self, from: data)) ?? []
     }
 }

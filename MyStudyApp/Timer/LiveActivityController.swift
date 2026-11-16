@@ -32,6 +32,18 @@ enum LiveActivityController {
         }
     }
 
+    /// 一時停止・再開したときに、表示中のものを直す(次の予定などはそのまま)
+    static func update(_ timer: RunningTimer) {
+        for activity in Activity<StudyActivityAttributes>.activities where activity.attributes.itemId == timer.itemId.uuidString {
+            var state = activity.content.state
+            state.startedAt = timer.displayStart
+            state.pausedElapsed = timer.isPaused ? timer.priorSeconds + timer.accumulatedSeconds : nil
+            Task {
+                await activity.update(ActivityContent(state: state, staleDate: nil))
+            }
+        }
+    }
+
     /// その予定の表示を消す
     static func end(itemId: UUID) {
         for activity in Activity<StudyActivityAttributes>.activities where activity.attributes.itemId == itemId.uuidString {

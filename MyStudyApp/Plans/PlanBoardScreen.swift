@@ -3,8 +3,8 @@ import UIKit
 
 // 「週・月」タブ: 期間の計画(そもそも終わる?・月の流れ)と、週ごとの計画を表示します。
 struct PlanBoardScreen: View {
-    @State private var store = PlanBoardStore()
-    @Environment(\.scenePhase) private var scenePhase
+    /// 週・月の計画(タブの外の MainTabView で作って渡す)
+    let store: PlanBoardStore
     /// 画面の横幅の種類(iPad の広い画面だと .regular)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -81,9 +81,6 @@ struct PlanBoardScreen: View {
                 .task {
                     await store.sync()
                     proxy.scrollTo(store.currentWeekStart, anchor: .top)
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await store.sync() } }
                 }
             }
         }

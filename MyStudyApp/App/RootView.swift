@@ -18,6 +18,8 @@ struct RootView: View {
                         StudyTimer().cancelAll()
                         ScreenTimeController.resetAll()
                         PlanBoardStore.clearSaved()
+                        WeekWidgetStore.write(.empty)
+                        _ = TimerWidgetActions.takeEvents()
                         SessionQueue.clearSaved()
                         NotesStore.clearSaved()
                         ItemEditQueue.clearSaved()
