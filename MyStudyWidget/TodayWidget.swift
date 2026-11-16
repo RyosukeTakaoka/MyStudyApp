@@ -324,7 +324,9 @@ private struct ExtraLargePortraitView: View {
             header: {
                 DayHeader(entry: entry, large: true)
                 // 今 → 次
+                // fixedSize: 中身の高さぴったりにする(余った高さでカードが縦にのびて、予定の行が入らなくなるのを防ぐ)
                 NowNextBlock(entry: entry)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
