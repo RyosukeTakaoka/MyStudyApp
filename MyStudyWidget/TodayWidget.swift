@@ -73,10 +73,14 @@ struct TodayProvider: TimelineProvider {
 struct TodayWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TodayWidget", provider: TodayProvider()) { entry in
-            TodayWidgetView(entry: entry)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            WidgetFrame(title: "今日の予定", systemImage: "checklist", tint: .blue,
+                        trailing: entry.hasData ? "\(entry.doneCount)/\(entry.items.count)" : nil) {
+                TodayWidgetView(entry: entry)
+            }
                 .containerBackground(.fill.tertiary, for: .widget)
         }
+        // 帯を端までぬるため、OS の余白を切る(中身の余白は WidgetFrame が付け直す)
+        .contentMarginsDisabled()
         .configurationDisplayName("今日の予定")
         .description("「今 → 次」と進み具合を表示します。大きいサイズでは、その場でチェックできます。")
         .supportedFamilies(Self.families)
@@ -124,18 +128,24 @@ struct TodayWidgetView: View {
 /// 「今」と「次」(小・中サイズの左側で使う)
 private struct NowNextBlock: View {
     let entry: TodayEntry
+    /// 日付と数の行を出すか(上に帯があるときは、帯に数が出ているので出さない)
+    var showsHeader = true
+    /// 今の予定の題名を何行まで出すか(中サイズは帯があってせまいので1行)
+    var titleLines = 2
 
     var body: some View {
         let state = entry.nowNext
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(DayKey.displayText(entry.dayKey))
-                Spacer(minLength: 4)
-                Text("\(entry.doneCount)/\(entry.items.count)")
-                    .monospacedDigit()
+            if showsHeader {
+                HStack {
+                    Text(DayKey.displayText(entry.dayKey))
+                    Spacer(minLength: 4)
+                    Text("\(entry.doneCount)/\(entry.items.count)")
+                        .monospacedDigit()
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
 
             Text("今")
                 .font(.caption2.bold())
@@ -143,7 +153,7 @@ private struct NowNextBlock: View {
             if let current = state.current {
                 Text(current.title)
                     .font(.headline)
-                    .lineLimit(2)
+                    .lineLimit(titleLines)
                     .strikethrough(current.done)
                 if let end = entry.date(ofMinutes: current.endMinutes) {
                     // style: .timer で、終了までの残り時間が自動で減っていく
@@ -213,12 +223,13 @@ private struct MediumView: View {
     var body: some View {
         let remaining = entry.items.filter { !$0.done }
         HStack(alignment: .top, spacing: 12) {
-            NowNextBlock(entry: entry)
+            NowNextBlock(entry: entry, showsHeader: false, titleLines: 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             FitRows(
                 items: remaining,
                 maxCount: 4,
-                spacing: 6,
+                spacing: 5,
+                dividers: true,
                 header: {
                     if remaining.isEmpty {
                         Label("全部おわり!", systemImage: "party.popper")
@@ -238,14 +249,8 @@ private struct DayHeader: View {
     var large = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(DayKey.displayText(entry.dayKey))
-                .font(large ? .title3.bold() : .headline)
-            Spacer()
-            Text("\(entry.doneCount)/\(entry.items.count) 完了")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(entry.items.count > 0 && entry.doneCount == entry.items.count ? Color.green : Color.secondary)
-        }
+        Text(DayKey.displayText(entry.dayKey))
+            .font(large ? .title3.bold() : .headline)
         ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
             .tint(.green)
         if let goal = entry.goal, !goal.isEmpty {
@@ -264,6 +269,8 @@ private struct LargeView: View {
     var body: some View {
         FitRows(
             items: entry.items,
+            spacing: 6,
+            dividers: true,
             pick: TodayEntry.rows,
             header: {
                 DayHeader(entry: entry)
@@ -284,7 +291,9 @@ private struct ExtraLargeView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 10) {
-                NowNextBlock(entry: entry)
+                Text(DayKey.displayText(entry.dayKey))
+                    .font(.headline)
+                NowNextBlock(entry: entry, showsHeader: false)
                 if let goal = entry.goal, !goal.isEmpty {
                     Text(goal)
                         .font(.subheadline)
@@ -298,6 +307,8 @@ private struct ExtraLargeView: View {
 
             FitRows(
                 items: entry.items,
+                spacing: 6,
+                dividers: true,
                 pick: TodayEntry.rows,
                 header: {
                     if entry.items.isEmpty {
@@ -320,11 +331,13 @@ private struct ExtraLargePortraitView: View {
         let currentId = entry.nowNext.current?.id
         FitRows(
             items: entry.items,
+            spacing: 6,
+            dividers: true,
             pick: TodayEntry.rows,
             header: {
                 DayHeader(entry: entry, large: true)
                 // 今 → 次
-                NowNextBlock(entry: entry)
+                NowNextBlock(entry: entry, showsHeader: false)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
