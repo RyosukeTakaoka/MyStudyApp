@@ -82,3 +82,72 @@ struct FitRows<Item, Header: View, Row: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+/// ウィジェットの外わく。ホーム画面のサイズでは、いちばん上に色つきの帯(アイコン・アプリ名・ウィジェットの名前)を出す。
+/// メモのウィジェットのように、帯の下に中身を上から詰めて並べる。
+/// (帯を端までぬるために、設定で余白〔contentMargins〕を切り、中身の余白はここで付け直す)
+struct WidgetFrame<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    /// 帯の右に出す短い文字(例 "8/11")
+    var trailing: String? = nil
+    @ViewBuilder var content: () -> Content
+
+    @Environment(\.widgetFamily) private var family
+    /// その大きさでの、ふつうの余白(OS が決める)
+    @Environment(\.widgetContentMargins) private var margins
+
+    var body: some View {
+        if showsBand {
+            VStack(alignment: .leading, spacing: 0) {
+                band
+                content()
+                    .padding(.top, 10)
+                    .padding(.leading, margins.leading)
+                    .padding(.trailing, margins.trailing)
+                    .padding(.bottom, max(10, margins.bottom * 0.75))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        } else {
+            content()
+                .padding(margins)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// 帯を出す大きさ(ホーム画面の全サイズ。ロック画面はせまく色も付かないので出さない)
+    private var showsBand: Bool {
+        switch family {
+        case .systemSmall, .systemMedium, .systemLarge, .systemExtraLarge: return true
+        default: return family.isExtraLargePortrait
+        }
+    }
+
+    private var band: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.subheadline.bold())
+            Text("MyStudy")
+                .font(.subheadline.bold())
+            // 小サイズは横がせまいので、ウィジェットの名前は出さない
+            if family != .systemSmall {
+                Text(title)
+                    .font(.subheadline)
+                    .opacity(0.9)
+            }
+            Spacer(minLength: 4)
+            if let trailing {
+                Text(trailing)
+                    .font(.subheadline.monospacedDigit().bold())
+            }
+        }
+        .lineLimit(1)
+        .foregroundStyle(.white)
+        .padding(.horizontal, margins.leading)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.gradient)
+        .widgetAccentable()
+    }
+}
