@@ -79,7 +79,7 @@ struct TimerWidgetView: View {
             case .systemMedium:
                 TimerList(entry: entry, maxRows: 2)
             default:
-                TimerList(entry: entry, maxRows: 6)
+                TimerList(entry: entry, maxRows: 4)
             }
         }
     }
@@ -166,19 +166,14 @@ private struct SmallTimerView: View {
     }
 }
 
-/// 中・大: タイマーの一覧(枠に入るだけ並べる)
+/// 中・大: タイマーの一覧(中は2つ、大は4つまで。入らない分は「ほか N 個」)
 private struct TimerList: View {
     let entry: TimerEntry
     let maxRows: Int
 
     var body: some View {
-        FitRows(
-            items: entry.timers,
-            maxCount: maxRows,
-            spacing: 10,
-            header: { EmptyView() },
-            row: { shown, index in
-                let timer = shown[index]
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(entry.timers.prefix(maxRows), id: \.itemId) { timer in
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(timer.title)
@@ -198,7 +193,13 @@ private struct TimerList: View {
                     TimerButtons(timer: timer)
                 }
             }
-        )
+            if entry.timers.count > maxRows {
+                Text("ほか \(entry.timers.count - maxRows) 個のタイマー")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

@@ -151,3 +151,39 @@ struct WidgetFrame<Content: View>: View {
         .widgetAccentable()
     }
 }
+
+/// 決まった高さの行を、空いている高さに入るだけ並べる部品(軽い作り)。
+/// GeometryReader で残りの高さを1回だけ測り、「高さ ÷ 1行の高さ」で入る行の数を出して、その数だけ作る。
+/// (FitRows のように候補を何通りも作らないので、チェックボタンが多いウィジェットでも重くならない)
+/// 入らなかった分は、最後の1行を「ほか N 件」にする。
+struct RowCapacityList<Item, Row: View>: View {
+    let items: [Item]
+    /// 1行の高さ(行はこの高さに固定する)
+    var rowHeight: CGFloat = 36
+    var spacing: CGFloat = 6
+    /// n 行にするとき、どの行を出すか(ふつうは先頭から n 個)
+    var pick: ([Item], Int) -> [Item] = { items, n in Array(items.prefix(n)) }
+    /// 1行の見た目(shown = 出す行の一覧、index = その中の何番目か)
+    @ViewBuilder var row: (_ shown: [Item], _ index: Int) -> Row
+
+    var body: some View {
+        GeometryReader { geometry in
+            let capacity = max(0, Int((geometry.size.height + spacing) / (rowHeight + spacing)))
+            // 全部入るならそのまま。入らなければ、最後の1行ぶんを「ほか N 件」にあける
+            let shown = items.count <= capacity ? items : pick(items, max(0, capacity - 1))
+            VStack(alignment: .leading, spacing: spacing) {
+                ForEach(shown.indices, id: \.self) { index in
+                    row(shown, index)
+                        .frame(height: rowHeight)
+                }
+                if items.count > shown.count && capacity > 0 {
+                    Label("ほか \(items.count - shown.count) 件", systemImage: "ellipsis.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(height: rowHeight, alignment: .leading)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+        }
+    }
+}

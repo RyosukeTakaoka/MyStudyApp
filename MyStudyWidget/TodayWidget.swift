@@ -197,12 +197,15 @@ struct WidgetItemRow: View {
                     Text(time)
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 Text(item.title)
                     .font(.subheadline)
                     .strikethrough(item.done)
                     .foregroundStyle(item.done ? Color.secondary : Color.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 0)
         }
@@ -226,19 +229,14 @@ private struct MediumView: View {
         HStack(alignment: .top, spacing: 12) {
             NowNextBlock(entry: entry, showsHeader: false, titleLines: 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            FitRows(
-                items: remaining,
-                maxCount: 4,
-                spacing: 6,
-                header: {
-                    if remaining.isEmpty {
-                        Label("全部おわり!", systemImage: "party.popper")
-                            .font(.subheadline)
-                            .foregroundStyle(.green)
-                    }
-                },
-                row: { shown, index in WidgetItemRow(item: shown[index]) }
-            )
+            if remaining.isEmpty {
+                Label("全部おわり!", systemImage: "party.popper")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                RowCapacityList(items: remaining, row: { shown, index in WidgetItemRow(item: shown[index]) })
+            }
         }
     }
 }
@@ -263,23 +261,41 @@ private struct DayHeader: View {
     }
 }
 
+/// 予定の一覧(入るだけ並べる)。予定が無い日は、そう書く
+private struct ItemList: View {
+    let entry: TodayEntry
+    /// 今の予定に色をつけるか(特大たて長)
+    var highlightsCurrent = false
+
+    var body: some View {
+        if entry.items.isEmpty {
+            Text("今日の予定はありません")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            let currentId = highlightsCurrent ? entry.nowNext.current?.id : nil
+            RowCapacityList(items: entry.items, pick: TodayEntry.rows, row: { shown, index in
+                WidgetItemRow(item: shown[index])
+                    .padding(.horizontal, highlightsCurrent ? 6 : 0)
+                    .frame(maxHeight: .infinity)
+                    .background(
+                        shown[index].id == currentId ? Color.accentColor.opacity(0.15) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+            })
+        }
+    }
+}
+
 /// 大: 目標・進み具合・予定の一覧(チェックできる)
 private struct LargeView: View {
     let entry: TodayEntry
 
     var body: some View {
-        FitRows(
-            items: entry.items,
-            pick: TodayEntry.rows,
-            header: {
-                DayHeader(entry: entry)
-                if entry.items.isEmpty {
-                    Text("今日の予定はありません")
-                        .foregroundStyle(.secondary)
-                }
-            },
-            row: { shown, index in WidgetItemRow(item: shown[index]) }
-        )
+        VStack(alignment: .leading, spacing: 8) {
+            DayHeader(entry: entry)
+            ItemList(entry: entry)
+        }
     }
 }
 
@@ -293,6 +309,7 @@ private struct ExtraLargeView: View {
                 Text(DayKey.displayText(entry.dayKey))
                     .font(.headline)
                 NowNextBlock(entry: entry, showsHeader: false)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let goal = entry.goal, !goal.isEmpty {
                     Text(goal)
                         .font(.subheadline)
@@ -304,17 +321,7 @@ private struct ExtraLargeView: View {
             }
             .frame(maxWidth: 260, maxHeight: .infinity, alignment: .topLeading)
 
-            FitRows(
-                items: entry.items,
-                pick: TodayEntry.rows,
-                header: {
-                    if entry.items.isEmpty {
-                        Text("今日の予定はありません")
-                            .foregroundStyle(.secondary)
-                    }
-                },
-                row: { shown, index in WidgetItemRow(item: shown[index]) }
-            )
+            ItemList(entry: entry)
         }
     }
 }
@@ -325,34 +332,17 @@ private struct ExtraLargePortraitView: View {
     let entry: TodayEntry
 
     var body: some View {
-        let currentId = entry.nowNext.current?.id
-        FitRows(
-            items: entry.items,
-            pick: TodayEntry.rows,
-            header: {
-                DayHeader(entry: entry, large: true)
-                // 今 → 次
-                // fixedSize: 中身の高さぴったりにする(余った高さでカードが縦にのびて、予定の行が入らなくなるのを防ぐ)
-                NowNextBlock(entry: entry, showsHeader: false)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                if entry.items.isEmpty {
-                    Text("今日の予定はありません")
-                        .foregroundStyle(.secondary)
-                }
-            },
-            row: { shown, index in
-                WidgetItemRow(item: shown[index])
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        shown[index].id == currentId ? Color.accentColor.opacity(0.15) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 8)
-                    )
-            }
-        )
+        VStack(alignment: .leading, spacing: 10) {
+            DayHeader(entry: entry, large: true)
+            // 今 → 次
+            // fixedSize: 中身の高さぴったりにする(余った高さでカードが縦にのびて、予定の行が入らなくなるのを防ぐ)
+            NowNextBlock(entry: entry, showsHeader: false)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            ItemList(entry: entry, highlightsCurrent: true)
+        }
     }
 }
 
