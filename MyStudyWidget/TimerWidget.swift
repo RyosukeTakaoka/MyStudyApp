@@ -49,14 +49,10 @@ struct TimerProvider: TimelineProvider {
 struct TimerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: TimerWidgetKind.kind, provider: TimerProvider()) { entry in
-            WidgetFrame(title: "タイマー", systemImage: "timer", tint: .orange,
-                        trailing: entry.timers.isEmpty ? "停止中" : "\(entry.timers.count) 個") {
-                TimerWidgetView(entry: entry)
-            }
+            TimerWidgetView(entry: entry)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        // 帯を端までぬるため、OS の余白を切る(中身の余白は WidgetFrame が付け直す)
-        .contentMarginsDisabled()
         .configurationDisplayName("勉強タイマー")
         .description("動いているタイマーの経過時間を表示し、一時停止・完了・終了をその場で押せます。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
@@ -179,8 +175,7 @@ private struct TimerList: View {
         FitRows(
             items: entry.timers,
             maxCount: maxRows,
-            spacing: 8,
-            dividers: true,
+            spacing: 10,
             header: { EmptyView() },
             row: { shown, index in
                 let timer = shown[index]

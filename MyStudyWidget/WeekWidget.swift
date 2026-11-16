@@ -51,14 +51,10 @@ struct WeekProvider: TimelineProvider {
 struct WeekWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WeekWidgetStore.kind, provider: WeekProvider()) { entry in
-            WidgetFrame(title: "今週の計画", systemImage: "rectangle.stack", tint: .green,
-                        trailing: entry.week.map { "\($0.done)/\($0.total)" }) {
-                WeekWidgetView(entry: entry)
-            }
+            WeekWidgetView(entry: entry)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        // 帯を端までぬるため、OS の余白を切る(中身の余白は WidgetFrame が付け直す)
-        .contentMarginsDisabled()
         .configurationDisplayName("今週の計画")
         .description("週・月タブの今週のやることと、箱の進み具合を表示します。")
         .supportedFamilies(WidgetFamily.withExtraLargePortrait([
@@ -118,6 +114,9 @@ private struct WeekHeader: View {
                         .background(Color.accentColor.opacity(0.18), in: Capsule())
                 }
                 Spacer(minLength: 0)
+                Text("\(week.done)/\(week.total)")
+                    .font(.subheadline.monospacedDigit().bold())
+                    .foregroundStyle(week.total > 0 && week.done >= week.total ? Color.green : Color.primary)
             }
             ProgressView(value: Double(week.done), total: Double(max(week.total, 1)))
                 .tint(.green)
@@ -203,8 +202,6 @@ private struct WeekListView: View {
         FitRows(
             items: week.goals,
             maxCount: maxGoals,
-            spacing: 6,
-            dividers: true,
             header: {
                 WeekHeader(week: week)
                 if showsEvents && !week.events.isEmpty {
@@ -245,8 +242,6 @@ private struct WeekWideView: View {
             FitRows(
                 items: week.goals,
                 maxCount: 16,
-                spacing: 6,
-                dividers: true,
                 header: { EmptyView() },
                 row: { shown, index in GoalWithGroup(goals: shown, index: index, showsGroups: true) }
             )

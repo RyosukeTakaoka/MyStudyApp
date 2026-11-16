@@ -45,8 +45,6 @@ struct FitRows<Item, Header: View, Row: View>: View {
     /// 多くてもこの数まで(ためす数を減らして、ウィジェットを速く描くため)
     var maxCount: Int = 30
     var spacing: CGFloat = 8
-    /// 行と行のあいだに区切り線を入れるか(メモのウィジェットのように)
-    var dividers: Bool = false
     /// n 行にするとき、どの行を出すか(ふつうは先頭から n 個)
     var pick: ([Item], Int) -> [Item] = { items, n in Array(items.prefix(n)) }
     /// 一覧の上に出すもの(日付・進み具合など)
@@ -73,85 +71,14 @@ struct FitRows<Item, Header: View, Row: View>: View {
         VStack(alignment: .leading, spacing: spacing) {
             header()
             ForEach(shown.indices, id: \.self) { index in
-                if dividers && index > 0 {
-                    Divider()
-                }
                 row(shown, index)
             }
             if items.count > shown.count {
-                // 入らなかった分(最後の行は必ず全部見えるようにしてある)
-                Label("ほか \(items.count - shown.count) 件", systemImage: "ellipsis.circle")
+                Text("ほか \(items.count - shown.count) 件")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// ウィジェットの外わく。中サイズ以上では、いちばん上に色つきの帯(アイコン・アプリ名・ウィジェットの名前)を出す。
-/// メモのウィジェットのように、帯の下に中身を上から詰めて並べる。
-/// (帯を端までぬるために、設定で余白〔contentMargins〕を切り、中身の余白はここで付け直す)
-struct WidgetFrame<Content: View>: View {
-    let title: String
-    let systemImage: String
-    let tint: Color
-    /// 帯の右に出す短い文字(例 "8/11")
-    var trailing: String? = nil
-    @ViewBuilder var content: () -> Content
-
-    @Environment(\.widgetFamily) private var family
-    /// その大きさでの、ふつうの余白(OS が決める)
-    @Environment(\.widgetContentMargins) private var margins
-
-    var body: some View {
-        if showsBand {
-            VStack(alignment: .leading, spacing: 0) {
-                band
-                content()
-                    .padding(.top, 10)
-                    .padding(.leading, margins.leading)
-                    .padding(.trailing, margins.trailing)
-                    .padding(.bottom, max(10, margins.bottom * 0.75))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-        } else {
-            content()
-                .padding(margins)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-    }
-
-    /// 帯を出す大きさ(小とロック画面はせまいので出さない)
-    private var showsBand: Bool {
-        switch family {
-        case .systemMedium, .systemLarge, .systemExtraLarge: return true
-        default: return family.isExtraLargePortrait
-        }
-    }
-
-    private var band: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.subheadline.bold())
-            Text("MyStudy")
-                .font(.subheadline.bold())
-            Text(title)
-                .font(.subheadline)
-                .opacity(0.9)
-            Spacer(minLength: 4)
-            if let trailing {
-                Text(trailing)
-                    .font(.subheadline.monospacedDigit().bold())
-            }
-        }
-        .lineLimit(1)
-        .foregroundStyle(.white)
-        .padding(.horizontal, margins.leading)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.gradient)
-        .widgetAccentable()
     }
 }
