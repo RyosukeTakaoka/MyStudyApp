@@ -50,6 +50,7 @@ struct TimerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: TimerWidgetKind.kind, provider: TimerProvider()) { entry in
             TimerWidgetView(entry: entry)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("勉強タイマー")
@@ -78,7 +79,7 @@ struct TimerWidgetView: View {
             case .systemMedium:
                 TimerList(entry: entry, maxRows: 2)
             default:
-                TimerList(entry: entry, maxRows: 4)
+                TimerList(entry: entry, maxRows: 6)
             }
         }
     }
@@ -155,23 +156,29 @@ private struct SmallTimerView: View {
             }
             Text(timer.title)
                 .font(.subheadline.bold())
-                .lineLimit(2)
+                .lineLimit(1)
             ElapsedView(timer: timer, now: now)
                 .font(.title2.monospacedDigit().bold())
+                .minimumScaleFactor(0.7)
             Spacer(minLength: 0)
             TimerButtons(timer: timer, size: 32)
         }
     }
 }
 
-/// 中・大: タイマーの一覧
+/// 中・大: タイマーの一覧(枠に入るだけ並べる)
 private struct TimerList: View {
     let entry: TimerEntry
     let maxRows: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(entry.timers.prefix(maxRows), id: \.itemId) { timer in
+        FitRows(
+            items: entry.timers,
+            maxCount: maxRows,
+            spacing: 10,
+            header: { EmptyView() },
+            row: { shown, index in
+                let timer = shown[index]
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(timer.title)
@@ -191,13 +198,7 @@ private struct TimerList: View {
                     TimerButtons(timer: timer)
                 }
             }
-            if entry.timers.count > maxRows {
-                Text("ほか \(entry.timers.count - maxRows) 個のタイマー")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
+        )
     }
 }
 

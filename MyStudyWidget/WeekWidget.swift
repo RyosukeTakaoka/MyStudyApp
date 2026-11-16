@@ -52,6 +52,7 @@ struct WeekWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WeekWidgetStore.kind, provider: WeekProvider()) { entry in
             WeekWidgetView(entry: entry)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("今週の計画")
@@ -69,12 +70,12 @@ struct WeekWidgetView: View {
     var body: some View {
         if let week = entry.week {
             if family.isExtraLargePortrait {
-                WeekListView(week: week, maxGoals: 16, showsEvents: true)
+                WeekListView(week: week, maxGoals: 30, showsEvents: true)
             } else {
                 switch family {
                 case .systemSmall: WeekSmallView(week: week)
-                case .systemMedium: WeekListView(week: week, maxGoals: 3, showsEvents: false)
-                case .systemLarge: WeekListView(week: week, maxGoals: 8, showsEvents: true)
+                case .systemMedium: WeekListView(week: week, maxGoals: 4, showsEvents: false)
+                case .systemLarge: WeekListView(week: week, maxGoals: 12, showsEvents: true)
                 case .systemExtraLarge: WeekWideView(week: week)
                 case .accessoryRectangular: WeekLockView(week: week)
                 default: WeekSmallView(week: week)
@@ -191,29 +192,29 @@ private struct WeekSmallView: View {
     }
 }
 
-/// 中・大・特大(たて長): 見出し + やることの一覧
+/// 中・大・特大(たて長): 見出し + やることの一覧(枠に入るだけ並べる)
 private struct WeekListView: View {
     let week: WeekWidgetSnapshot.Week
     let maxGoals: Int
     let showsEvents: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            WeekHeader(week: week)
-            if showsEvents && !week.events.isEmpty {
-                Label(week.events.joined(separator: " ・ "), systemImage: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        FitRows(
+            items: week.goals,
+            maxCount: maxGoals,
+            header: {
+                WeekHeader(week: week)
+                if showsEvents && !week.events.isEmpty {
+                    Label(week.events.joined(separator: " ・ "), systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            },
+            row: { shown, index in
+                GoalWithGroup(goals: shown, index: index, showsGroups: maxGoals > 4)
             }
-            GoalGroupList(goals: Array(week.goals.prefix(maxGoals)), showsGroups: maxGoals > 3)
-            if week.goals.count > maxGoals {
-                Text("ほか \(week.goals.count - maxGoals) 件")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
+        )
     }
 }
 
@@ -231,44 +232,38 @@ private struct WeekWideView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 }
-                ForEach(week.events, id: \.self) { event in
+                ForEach(week.events.prefix(5), id: \.self) { event in
                     Label(event, systemImage: "calendar")
                         .font(.caption)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 0)
             }
-            .frame(maxWidth: 260, alignment: .leading)
-            VStack(alignment: .leading, spacing: 8) {
-                GoalGroupList(goals: Array(week.goals.prefix(8)), showsGroups: true)
-                if week.goals.count > 8 {
-                    Text("ほか \(week.goals.count - 8) 件")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 260, maxHeight: .infinity, alignment: .topLeading)
+            FitRows(
+                items: week.goals,
+                maxCount: 16,
+                header: { EmptyView() },
+                row: { shown, index in GoalWithGroup(goals: shown, index: index, showsGroups: true) }
+            )
         }
     }
 }
 
-/// やることを、グループ(科目など)の見出しつきで並べる
-private struct GoalGroupList: View {
+/// やること1つ。グループ(科目など)が変わるところでは、上にグループの名前を出す
+private struct GoalWithGroup: View {
     let goals: [WeekWidgetSnapshot.Goal]
+    let index: Int
     let showsGroups: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(goals.enumerated()), id: \.offset) { index, goal in
-                if showsGroups, !goal.group.isEmpty, index == 0 || goals[index - 1].group != goal.group {
-                    Text(goal.group)
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.top, index == 0 ? 0 : 2)
-                }
-                WidgetGoalRow(goal: goal)
+        let goal = goals[index]
+        VStack(alignment: .leading, spacing: 4) {
+            if showsGroups, !goal.group.isEmpty, index == 0 || goals[index - 1].group != goal.group {
+                Text(goal.group)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
             }
+            WidgetGoalRow(goal: goal)
         }
     }
 }

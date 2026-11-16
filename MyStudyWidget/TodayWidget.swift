@@ -74,6 +74,7 @@ struct TodayWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TodayWidget", provider: TodayProvider()) { entry in
             TodayWidgetView(entry: entry)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("今日の予定")
@@ -210,23 +211,48 @@ private struct MediumView: View {
     let entry: TodayEntry
 
     var body: some View {
+        let remaining = entry.items.filter { !$0.done }
         HStack(alignment: .top, spacing: 12) {
             NowNextBlock(entry: entry)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .leading, spacing: 6) {
-                let remaining = entry.items.filter { !$0.done }
-                if remaining.isEmpty {
-                    Label("全部おわり!", systemImage: "party.popper")
-                        .font(.subheadline)
-                        .foregroundStyle(.green)
-                } else {
-                    ForEach(remaining.prefix(3)) { item in
-                        WidgetItemRow(item: item)
+            FitRows(
+                items: remaining,
+                maxCount: 4,
+                spacing: 6,
+                header: {
+                    if remaining.isEmpty {
+                        Label("全部おわり!", systemImage: "party.popper")
+                            .font(.subheadline)
+                            .foregroundStyle(.green)
                     }
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                },
+                row: { shown, index in WidgetItemRow(item: shown[index]) }
+            )
+        }
+    }
+}
+
+/// 日付と進み具合(大・特大たて長の上に出す)
+private struct DayHeader: View {
+    let entry: TodayEntry
+    var large = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(DayKey.displayText(entry.dayKey))
+                .font(large ? .title3.bold() : .headline)
+            Spacer()
+            Text("\(entry.doneCount)/\(entry.items.count) 完了")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(entry.items.count > 0 && entry.doneCount == entry.items.count ? Color.green : Color.secondary)
+        }
+        ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
+            .tint(.green)
+        if let goal = entry.goal, !goal.isEmpty {
+            Label(goal, systemImage: "flag")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
     }
 }
@@ -236,36 +262,18 @@ private struct LargeView: View {
     let entry: TodayEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(DayKey.displayText(entry.dayKey))
-                    .font(.headline)
-                Spacer()
-                Text("\(entry.doneCount)/\(entry.items.count) 完了")
-                    .font(.subheadline.monospacedDigit())
-            }
-            if let goal = entry.goal, !goal.isEmpty {
-                Text(goal)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
-
-            if entry.items.isEmpty {
-                Text("今日の予定はありません")
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(entry.items.prefix(7)) { item in
-                WidgetItemRow(item: item)
-            }
-            if entry.items.count > 7 {
-                Text("ほか \(entry.items.count - 7) 件")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
+        FitRows(
+            items: entry.items,
+            pick: TodayEntry.rows,
+            header: {
+                DayHeader(entry: entry)
+                if entry.items.isEmpty {
+                    Text("今日の予定はありません")
+                        .foregroundStyle(.secondary)
+                }
+            },
+            row: { shown, index in WidgetItemRow(item: shown[index]) }
+        )
     }
 }
 
@@ -284,26 +292,21 @@ private struct ExtraLargeView: View {
                         .lineLimit(3)
                 }
                 ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
-                Spacer(minLength: 0)
+                    .tint(.green)
             }
-            .frame(maxWidth: 260, alignment: .leading)
+            .frame(maxWidth: 260, maxHeight: .infinity, alignment: .topLeading)
 
-            VStack(alignment: .leading, spacing: 8) {
-                if entry.items.isEmpty {
-                    Text("今日の予定はありません")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(entry.items.prefix(7)) { item in
-                    WidgetItemRow(item: item)
-                }
-                if entry.items.count > 7 {
-                    Text("ほか \(entry.items.count - 7) 件")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            FitRows(
+                items: entry.items,
+                pick: TodayEntry.rows,
+                header: {
+                    if entry.items.isEmpty {
+                        Text("今日の予定はありません")
+                            .foregroundStyle(.secondary)
+                    }
+                },
+                row: { shown, index in WidgetItemRow(item: shown[index]) }
+            )
         }
     }
 }
@@ -312,69 +315,46 @@ private struct ExtraLargeView: View {
 /// 上から「日付と進み具合・目標」→「今 → 次」→ 1日の予定の一覧(今の予定は色つき、その場でチェックできる)
 private struct ExtraLargePortraitView: View {
     let entry: TodayEntry
-    /// 一覧に出す最大の行数(たて長なので多め)
-    private let maxRows = 13
 
     var body: some View {
-        let state = entry.nowNext
-        VStack(alignment: .leading, spacing: 10) {
-            // 日付と進み具合
-            HStack(alignment: .firstTextBaseline) {
-                Text(DayKey.displayText(entry.dayKey))
-                    .font(.title3.bold())
-                Spacer()
-                Text("\(entry.doneCount)/\(entry.items.count) 完了")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(entry.items.count > 0 && entry.doneCount == entry.items.count ? Color.green : Color.secondary)
-            }
-            ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
-                .tint(.green)
-            if let goal = entry.goal, !goal.isEmpty {
-                Label(goal, systemImage: "flag")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            // 今 → 次
-            NowNextBlock(entry: entry)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-
-            // 1日の予定(今の予定に色をつける)
-            if entry.items.isEmpty {
-                Text("今日の予定はありません")
-                    .foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(rows) { item in
-                    WidgetItemRow(item: item)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            item.id == state.current?.id ? Color.accentColor.opacity(0.15) : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 8)
-                        )
+        let currentId = entry.nowNext.current?.id
+        FitRows(
+            items: entry.items,
+            pick: TodayEntry.rows,
+            header: {
+                DayHeader(entry: entry, large: true)
+                // 今 → 次
+                NowNextBlock(entry: entry)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                if entry.items.isEmpty {
+                    Text("今日の予定はありません")
+                        .foregroundStyle(.secondary)
                 }
+            },
+            row: { shown, index in
+                WidgetItemRow(item: shown[index])
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        shown[index].id == currentId ? Color.accentColor.opacity(0.15) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
             }
-            if entry.items.count > rows.count {
-                Text("ほか \(entry.items.count - rows.count) 件")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
+        )
     }
+}
 
-    /// 表示する行。予定が多いときは、終わった予定を前から省いて、今とこれからの予定を残す
-    private var rows: [PlanItem] {
-        guard entry.items.count > maxRows else { return entry.items }
-        var list = entry.items
-        while list.count > maxRows, let index = list.firstIndex(where: \.done) {
+extension TodayEntry {
+    /// n 行しか入らないときに出す予定。終わった予定から省いて、今とこれからの予定を残す(並びは時刻順のまま)
+    static func rows(_ items: [PlanItem], _ n: Int) -> [PlanItem] {
+        guard items.count > n else { return items }
+        var list = items
+        while list.count > n, let index = list.firstIndex(where: \.done) {
             list.remove(at: index)
         }
-        return Array(list.prefix(maxRows))
+        return Array(list.prefix(n))
     }
 }
 
