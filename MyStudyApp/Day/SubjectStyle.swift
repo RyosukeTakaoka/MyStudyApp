@@ -11,6 +11,7 @@ enum SubjectStyle {
         case "経済": return .green
         case "会計": return .purple
         case "学校": return .pink
+        case "生活": return .brown   // 食事・お風呂・移動など(勉強ではない予定)
         default: return .gray
         }
     }

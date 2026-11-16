@@ -62,6 +62,9 @@ extension PlanItem {
     /// 時間つきの予定か
     var isBlock: Bool { kind == "block" }
 
+    /// 勉強の予定か(食事・睡眠・移動などは false)。集中モードと自動タイマーは勉強の予定だけで動く
+    var isStudy: Bool { StudyKind.isStudy(subject: subject, title: title) }
+
     /// 開始時刻を「0時からの分数」で表したもの(16:30 → 990)
     var startMinutes: Int? { TimeOfDay.minutes(from: startTime) }
 
@@ -107,5 +110,32 @@ enum TimeOfDay {
     /// 990 → "16:30"
     static func text(_ minutes: Int) -> String {
         String(format: "%d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
+/// 勉強の予定か、生活の予定(食事・睡眠・移動など)かを見分ける決まり。
+/// 1. 科目が「生活」などなら → 勉強ではない
+/// 2. 科目が勉強の科目(鑑定理論・民法・学校など)なら → 勉強(「夕食を食べながら Anki」も勉強)
+/// 3. 科目が「その他」や空のときだけ、題名に「食事・風呂・睡眠・移動…」などがあれば勉強ではない
+enum StudyKind {
+    /// 勉強ではない科目
+    static let nonStudySubjects: Set<String> = ["生活", "食事", "休憩", "睡眠", "移動", "自由", "風呂", "家事"]
+    /// 勉強の科目(この科目なら、題名に「夕食」などがあっても勉強)
+    static let studySubjects: Set<String> = ["鑑定理論", "行政法規", "民法", "経済", "会計", "学校"]
+    /// 科目が「その他」や空のときに見る、生活の言葉
+    static let nonStudyWords = [
+        "食事", "朝食", "昼食", "夕食", "夜食", "朝ごはん", "昼ごはん", "夜ごはん", "ご飯", "ごはん", "弁当", "お弁当",
+        "風呂", "入浴", "シャワー", "睡眠", "就寝", "寝る", "起床", "昼寝", "仮眠",
+        "休憩", "移動", "通学", "登校", "下校", "帰宅", "身支度", "支度", "自由時間", "家事",
+    ]
+    /// 題名にこれがあれば、生活の言葉があっても勉強(例「夕食 + Anki」)
+    static let studyWords = ["Anki", "anki", "ANKI", "勉強", "復習", "暗記", "問題", "答練", "演習"]
+
+    static func isStudy(subject: String?, title: String) -> Bool {
+        let subject = (subject ?? "").trimmingCharacters(in: .whitespaces)
+        if nonStudySubjects.contains(subject) { return false }
+        if studySubjects.contains(subject) { return true }
+        if studyWords.contains(where: { title.contains($0) }) { return true }
+        return !nonStudyWords.contains(where: { title.contains($0) })
     }
 }

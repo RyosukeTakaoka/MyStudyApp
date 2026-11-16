@@ -64,8 +64,8 @@ struct DayScreen: View {
             .scrollDismissesKeyboard(.interactively)
             // 下に引っぱって更新(プル・トゥ・リフレッシュ)
             .refreshable { await store.sync() }
-            // 左右スワイプで前日・翌日へ
-            .simultaneousGesture(daySwipeGesture)
+            // ※ 画面全体の「左右スワイプで日付を変える」は、予定の行のスワイプ(編集・明日へ・削除)と
+            //   ぶつかって勝手に翌日へ進んでしまうのでやめた。日付は上の矢印・日付・📅 で変える
             // 画面が出たときに同期する(Claude が書きこんだ新しい予定がすぐ出るように)
             .task {
                 network.start()
@@ -358,21 +358,6 @@ struct DayScreen: View {
         }
     }
 
-    /// 左右スワイプの判定。横に大きく、たてにはあまり動いていないときだけ日付を変える
-    private var daySwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                let dx = value.translation.width
-                let dy = value.translation.height
-                guard abs(dx) > 80, abs(dx) > abs(dy) * 2 else { return }
-                if dx < 0 {
-                    store.goToNextDay()      // 左へスワイプ → 翌日
-                } else {
-                    store.goToPreviousDay()  // 右へスワイプ → 前日
-                }
-            }
-    }
-
     // MARK: - タイマー
 
     /// タイマーのカードの目印(スクロールで移動するときに使う)
@@ -479,7 +464,8 @@ struct DayScreen: View {
 
     /// タイマー中の集中モード: 動いているタイマーが1つでもあればかけ、全部止まったら外す
     private func updateFocusForTimers() {
-        let active = timer.activeTimers
+        // 勉強のタイマーだけを見る(食事などのタイマーでは集中モードにしない)
+        let active = timer.activeTimers.filter { StudyKind.isStudy(subject: $0.subject, title: $0.title) }
         if active.isEmpty {
             screenTime.endForTimer()
         } else if focusDuringTimer && screenTime.isReady {

@@ -172,6 +172,7 @@ final class StudyTimer {
     func autoStartCandidate(items: [PlanItem], dayKey: String, nowMinutes: Int) -> PlanItem? {
         guard let current = NowNext.compute(items: items, nowMinutes: nowMinutes).current,
               !current.done,
+              current.isStudy,   // 食事などの生活の予定では、自動で始めない(勉強時間に数えないため)
               timer(for: current.id) == nil
         else { return nil }
         // 同じ予定で2回目は自動で始めない(自分で止めたのに、また始まらないように)

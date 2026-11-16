@@ -78,11 +78,24 @@ struct TodayWidget: Widget {
         }
         .configurationDisplayName("今日の予定")
         .description("「今 → 次」と進み具合を表示します。大きいサイズでは、その場でチェックできます。")
-        .supportedFamilies([
+        .supportedFamilies(Self.families)
+    }
+
+    /// 対応する大きさの一覧
+    private static var families: [WidgetFamily] {
+        var list: [WidgetFamily] = [
             .systemSmall, .systemMedium, .systemLarge,                         // ホーム画面
-            .systemExtraLarge,                                                 // iPad のホーム画面(特大)
+            .systemExtraLarge,                                                 // iPad のホーム画面(特大・横長)
             .accessoryCircular, .accessoryRectangular, .accessoryInline,       // ロック画面
-        ])
+        ]
+        // iOS 27 で増えた、iPhone の特大(たて長・ホーム画面1ページ分)。
+        // #if compiler: Xcode 27 より古い Xcode では、この名前を知らないのでとばす
+        #if compiler(>=6.4)
+        if #available(iOS 27.0, *) {
+            list.append(.systemExtraLargePortrait)
+        }
+        #endif
+        return list
     }
 }
 
@@ -96,6 +109,8 @@ struct TodayWidgetView: View {
             Text("アプリを開いてログインしてください")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        } else if isExtraLargePortrait {
+            ExtraLargePortraitView(entry: entry)
         } else {
             switch family {
             case .systemSmall: SmallView(entry: entry)
@@ -108,6 +123,18 @@ struct TodayWidgetView: View {
             default: SmallView(entry: entry)
             }
         }
+    }
+}
+
+/// 特大(たて長)かどうか。iOS 27 より前では、いつも false
+extension TodayWidgetView {
+    var isExtraLargePortrait: Bool {
+        #if compiler(>=6.4)
+        if #available(iOS 27.0, *) {
+            return family == .systemExtraLargePortrait
+        }
+        #endif
+        return false
     }
 }
 
@@ -298,6 +325,76 @@ private struct ExtraLargeView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+/// 特大(たて長・iPhone の iOS 27 から): 1日の全体
+/// 上から「日付と進み具合・目標」→「今 → 次」→ 1日の予定の一覧(今の予定は色つき、その場でチェックできる)
+private struct ExtraLargePortraitView: View {
+    let entry: TodayEntry
+    /// 一覧に出す最大の行数(たて長なので多め)
+    private let maxRows = 13
+
+    var body: some View {
+        let state = entry.nowNext
+        VStack(alignment: .leading, spacing: 10) {
+            // 日付と進み具合
+            HStack(alignment: .firstTextBaseline) {
+                Text(DayKey.displayText(entry.dayKey))
+                    .font(.title3.bold())
+                Spacer()
+                Text("\(entry.doneCount)/\(entry.items.count) 完了")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(entry.items.count > 0 && entry.doneCount == entry.items.count ? Color.green : Color.secondary)
+            }
+            ProgressView(value: Double(entry.doneCount), total: Double(max(entry.items.count, 1)))
+                .tint(.green)
+            if let goal = entry.goal, !goal.isEmpty {
+                Label(goal, systemImage: "flag")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            // 今 → 次
+            NowNextBlock(entry: entry)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+
+            // 1日の予定(今の予定に色をつける)
+            if entry.items.isEmpty {
+                Text("今日の予定はありません")
+                    .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(rows) { item in
+                    WidgetItemRow(item: item)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            item.id == state.current?.id ? Color.accentColor.opacity(0.15) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                }
+            }
+            if entry.items.count > rows.count {
+                Text("ほか \(entry.items.count - rows.count) 件")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// 表示する行。予定が多いときは、終わった予定を前から省いて、今とこれからの予定を残す
+    private var rows: [PlanItem] {
+        guard entry.items.count > maxRows else { return entry.items }
+        var list = entry.items
+        while list.count > maxRows, let index = list.firstIndex(where: \.done) {
+            list.remove(at: index)
+        }
+        return Array(list.prefix(maxRows))
     }
 }
 

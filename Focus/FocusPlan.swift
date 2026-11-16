@@ -70,7 +70,7 @@ enum FocusPlan {
     }
 
     /// 予定ブロックから、自動で集中モードにする時間帯を作る。
-    /// 未チェック・これから終わる・15分以上のブロックだけ。すでに始まっているものは「今から」にする
+    /// 未チェック・勉強の予定・これから終わる・15分以上のブロックだけ。すでに始まっているものは「今から」にする
     static func blockWindows(
         items: [PlanItem],
         now: Date,
@@ -78,7 +78,8 @@ enum FocusPlan {
         calendar: Calendar = DayKey.gregorian()
     ) -> [Window] {
         let windows: [Window] = items.compactMap { item in
-            guard item.isBlock, !item.done,
+            // 食事・睡眠・移動などの生活の予定では、集中モードにしない
+            guard item.isBlock, !item.done, item.isStudy,
                   let startMinutes = item.startMinutes, let endMinutes = item.endMinutes,
                   let start = DayKey.date(dayKey: item.date, minutes: startMinutes, calendar: calendar),
                   let end = DayKey.date(dayKey: item.date, minutes: endMinutes, calendar: calendar),

@@ -11,7 +11,7 @@ struct ItemDraft: Equatable {
     var hasEnd = true
     var end: Date
 
-    static let standardSubjects = ["鑑定理論", "行政法規", "民法", "経済", "会計", "学校", "その他"]
+    static let standardSubjects = ["鑑定理論", "行政法規", "民法", "経済", "会計", "学校", "その他", "生活"]
 
     /// 科目の選択肢(いつもの科目 + 今の科目がそれ以外なら、それも)
     static func subjects(including current: String) -> [String] {
