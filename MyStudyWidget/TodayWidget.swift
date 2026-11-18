@@ -12,6 +12,13 @@ struct TodayEntry: TimelineEntry {
     let items: [PlanItem]
     /// アプリから一度でもデータを受け取ったか(未ログインなどで空なら false)
     let hasData: Bool
+    /// その日のカレンダーの予定(授業など)
+    var events: [WidgetCalendarEvent] = []
+
+    /// 「今」の予定が無いときに出す、今のカレンダーの予定(例: 授業の「化学」)
+    var calendarNow: WidgetCalendarEvent? {
+        nowNext.current == nil ? WidgetCalendarEvent.current(in: events, at: date) : nil
+    }
 
     var doneCount: Int { items.filter(\.done).count }
     var nowNext: NowNext { NowNext.compute(items: items, nowMinutes: DayKey.minutesOfDay(date)) }
@@ -55,7 +62,8 @@ struct TodayProvider: TimelineProvider {
         let snapshot = SharedStore.readSnapshot()
         let now = Date()
         let todayKey = DayKey.today(now: now)
-        let dates = [now] + WidgetTimeline.refreshDates(items: snapshot.day(todayKey).items, dayKey: todayKey, now: now)
+        let today = snapshot.day(todayKey)
+        let dates = [now] + WidgetTimeline.refreshDates(items: today.items, dayKey: todayKey, now: now, events: today.events)
         let entries = dates.map { makeEntry(at: $0, snapshot: snapshot) }
         // .atEnd = 最後の表示(夜0時)になったら、新しい予定表を作り直してもらう
         completion(Timeline(entries: entries, policy: .atEnd))
@@ -64,7 +72,8 @@ struct TodayProvider: TimelineProvider {
     private func makeEntry(at date: Date, snapshot: WidgetSnapshot) -> TodayEntry {
         let key = DayKey.today(now: date)
         let day = snapshot.day(key)
-        return TodayEntry(date: date, dayKey: key, goal: day.goal, items: day.items, hasData: !snapshot.days.isEmpty)
+        return TodayEntry(date: date, dayKey: key, goal: day.goal, items: day.items, hasData: !snapshot.days.isEmpty,
+                          events: day.events)
     }
 }
 
@@ -162,6 +171,19 @@ private struct NowNextBlock: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+            } else if let event = entry.calendarNow {
+                // 予定が無い時間は、カレンダーの予定(授業など)を出す
+                Label {
+                    Text(event.title)
+                } icon: {
+                    Image(systemName: "calendar")
+                        .font(.caption)
+                }
+                .font(.headline)
+                .lineLimit(titleLines)
+                (Text("あと ") + Text(event.end, style: .timer))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             } else {
                 Text("予定なし")
                     .font(.headline)
@@ -388,6 +410,14 @@ private struct RectangularView: View {
                     (Text("あと ") + Text(end, style: .timer))
                         .font(.caption.monospacedDigit())
                 }
+            } else if let event = entry.calendarNow {
+                // 予定が無い時間は、カレンダーの予定(授業など)
+                Text(event.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .widgetAccentable()
+                (Text("あと ") + Text(event.end, style: .timer))
+                    .font(.caption.monospacedDigit())
             } else {
                 Text("今は予定なし")
                     .font(.headline)
@@ -410,6 +440,8 @@ private struct InlineView: View {
         let state = entry.nowNext
         if let current = state.current {
             Text("今: \(current.title)")
+        } else if let event = entry.calendarNow {
+            Text("今: \(event.title)")
         } else if let next = state.next, let start = next.startMinutes {
             Text("次 \(TimeOfDay.text(start)) \(next.title)")
         } else {

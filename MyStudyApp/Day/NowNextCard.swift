@@ -3,6 +3,8 @@ import SwiftUI
 // 画面のいちばん上に出す「今 → 次」のカード。
 struct NowNextCard: View {
     let items: [PlanItem]
+    /// 今日のカレンダーの予定(学校の時間割など)。予定が無い時間の「今」に出す
+    var calendarEvents: [CalendarEventInfo] = []
     /// タイマーが動いている予定(その予定には開始ボタンを出さない)
     var runningItemIds: Set<UUID> = []
     /// 「タイマー開始」が押されたとき
@@ -45,6 +47,13 @@ struct NowNextCard: View {
                             .controlSize(.small)
                             .padding(.top, 4)
                         }
+                    } else if let event = currentEvent(at: context.date) {
+                        // 予定が無い時間は、カレンダーの予定(例: 授業の「化学」)を出す
+                        Label(event.title, systemImage: "calendar")
+                            .font(.title2.bold())
+                        Text(eventDetail(event, now: context.date))
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     } else {
                         Text("予定なし")
                             .font(.title2.bold())
@@ -75,6 +84,23 @@ struct NowNextCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 6)
         }
+    }
+
+    /// 今行われている、カレンダーの予定(終日の予定は除く。重なっていれば、あとから始まったほう)
+    private func currentEvent(at now: Date) -> CalendarEventInfo? {
+        calendarEvents
+            .filter { !$0.isAllDay && $0.start <= now && now < $0.end }
+            .max { $0.start < $1.start }
+    }
+
+    /// 「学校 ・ 11:50〜12:40 ・ あと34分」のような文字を作る(最初はカレンダーの名前)
+    private func eventDetail(_ event: CalendarEventInfo, now: Date) -> String {
+        let start = TimeOfDay.text(DayKey.minutesOfDay(event.start))
+        let end = TimeOfDay.text(DayKey.minutesOfDay(event.end))
+        let left = Int(event.end.timeIntervalSince(now) / 60)
+        var parts = [event.calendarTitle, "\(start)〜\(end)"]
+        if left > 0 { parts.append("あと\(NowNext.durationText(left))") }
+        return parts.joined(separator: " ・ ")
     }
 
     /// 「16:30〜17:30 ・ あと25分」のような文字を作る

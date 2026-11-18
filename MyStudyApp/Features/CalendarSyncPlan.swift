@@ -34,6 +34,26 @@ enum CalendarSyncPlan {
         return UUID(uuidString: url.lastPathComponent)
     }
 
+    // MARK: 睡眠(sleep_plans から書き出すもの)
+
+    /// 睡眠の予定に付ける URL(予定の URL とは別の形にして、まざらないようにする)
+    static func sleepURL(for id: UUID) -> URL {
+        URL(string: "mystudy://sleep/\(id.uuidString)")!
+    }
+
+    static func sleepId(from url: URL?) -> UUID? {
+        guard let url, url.scheme == "mystudy", url.host == "sleep" else { return nil }
+        return UUID(uuidString: url.lastPathComponent)
+    }
+
+    /// 睡眠の予定から、カレンダーに書き出す形を作る(題名は「睡眠」、メモは note)
+    static func sleepDrafts(_ sleeps: [SleepPlan]) -> [CalendarEventDraft] {
+        sleeps.map { sleep in
+            CalendarEventDraft(itemId: sleep.id, title: "睡眠", start: sleep.startAt, end: sleep.endAt,
+                               notes: sleep.note.flatMap { $0.isEmpty ? nil : $0 })
+        }
+    }
+
     /// 予定ブロックから、カレンダーに書き出す形を作る(時間なしのやることは書き出さない)
     static func drafts(items: [PlanItem], calendar: Calendar = DayKey.gregorian()) -> [CalendarEventDraft] {
         items.compactMap { item in

@@ -30,6 +30,8 @@ struct DayScreen: View {
     @AppStorage(AppSettings.calendarSyncKey) private var calendarSyncEnabled = false
     /// 表示中の日の、ほかのカレンダーの予定
     @State private var calendarEvents: [CalendarEventInfo] = []
+    /// 最後にウィジェットへ渡したデータ(カレンダーの予定を足して渡し直すときに使う)
+    @State private var lastWidgetSnapshot: WidgetSnapshot?
     /// 設定(端末に保存される)
     @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = true
     @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
@@ -70,7 +72,10 @@ struct DayScreen: View {
             .task {
                 network.start()
                 // ウィジェット用のデータが変わったら、共有フォルダに書き出す
-                store.onSnapshotChanged = { WidgetBridge.publish($0) }
+                store.onSnapshotChanged = { snapshot in
+                    lastWidgetSnapshot = snapshot
+                    publishWidget(snapshot)
+                }
                 store.applyWidgetToggles(SharedStore.takePendingToggles())
                 applyWidgetTimerEvents()
                 store.setOnline(network.isOnline)
@@ -259,6 +264,7 @@ struct DayScreen: View {
             Section {
                 NowNextCard(
                     items: store.items,
+                    calendarEvents: store.selectedDate == store.today ? calendarEvents : [],
                     runningItemIds: Set(timer.timers.map(\.itemId)),
                     onStartTimer: { startTimer(for: $0, isAuto: false) }
                 )
@@ -576,15 +582,47 @@ struct DayScreen: View {
     /// 今日から7日分の予定ブロックを「MyStudy」カレンダーに書き出す
     private func exportToCalendar() {
         guard calendarSyncEnabled else { return }
-        CalendarSync.export(
-            items: store.upcomingItems(days: 7),
-            from: store.today,
-            to: DayKey.adding(7, to: store.today)
-        )
+        let today = store.today
+        let items = store.upcomingItems(days: 7)
+        Task {
+            // 睡眠の予定も読んで、カレンダーに「睡眠」として書き出す(アプリの画面には出さない)。
+            // 昨夜の分(今朝まで)もふくめる
+            let sleeps = await loadSleeps(fromNight: DayKey.adding(-1, to: today), toNight: DayKey.adding(7, to: today))
+            CalendarSync.export(items: items, sleeps: sleeps, from: today, to: DayKey.adding(7, to: today))
+        }
+    }
+
+    /// 睡眠の予定を読む。読めなければ端末に取っておいた分、それも無ければ nil(カレンダーの「睡眠」に手をつけない)
+    private func loadSleeps(fromNight: String, toNight: String) async -> [SleepPlan]? {
+        do {
+            let sleeps = try await RemoteAPI().fetchSleeps(fromNight: fromNight, toNight: toNight)
+            SleepCache.save(sleeps)
+            return sleeps
+        } catch {
+            return SleepCache.load()?.filter { $0.night >= fromNight && $0.night <= toNight }
+        }
     }
 
     private func loadCalendarEvents() {
         calendarEvents = calendarSyncEnabled ? CalendarSync.events(on: store.selectedDate) : []
+        // カレンダーの予定が変わったかもしれないので、ウィジェットにも渡し直す
+        if let lastWidgetSnapshot {
+            publishWidget(lastWidgetSnapshot)
+        }
+    }
+
+    /// ウィジェットにデータを渡す。カレンダー連携がオンなら、その日のカレンダーの予定(時間のあるもの)も足す。
+    /// ウィジェットは、予定が無い時間の「今」にカレンダーの予定(例: 授業の「化学」)を出す
+    private func publishWidget(_ snapshot: WidgetSnapshot) {
+        var snapshot = snapshot
+        if calendarSyncEnabled && CalendarSync.isAuthorized {
+            for key in snapshot.days.keys {
+                snapshot.days[key]?.events = CalendarSync.events(on: key)
+                    .filter { !$0.isAllDay }
+                    .map { WidgetCalendarEvent(title: $0.title, start: $0.start, end: $0.end) }
+            }
+        }
+        WidgetBridge.publish(snapshot)
     }
 
     /// ほかのカレンダー(学校・Google など)の予定

@@ -6,6 +6,9 @@ struct WidgetSnapshot: Codable, Equatable {
     struct Day: Codable, Equatable {
         var goal: String?
         var items: [PlanItem]
+        /// iPhone のカレンダー(学校の時間割・Google など)の、時間のある予定。
+        /// 「今」の予定が無い時間に、ウィジェットの「今」に出す(例: 授業の「化学」)
+        var events: [WidgetCalendarEvent] = []
     }
 
     /// 日付キー("2026-11-13")ごとのデータ
@@ -15,6 +18,28 @@ struct WidgetSnapshot: Codable, Equatable {
 
     func day(_ key: String) -> Day {
         days[key] ?? Day(goal: nil, items: [])
+    }
+}
+
+extension WidgetSnapshot.Day {
+    /// 前の版で保存したデータ(events が無い)も読めるようにする
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        goal = try c.decodeIfPresent(String.self, forKey: .goal)
+        items = try c.decode([PlanItem].self, forKey: .items)
+        events = try c.decodeIfPresent([WidgetCalendarEvent].self, forKey: .events) ?? []
+    }
+}
+
+/// カレンダーの予定1件(ウィジェットに渡す分だけ)
+struct WidgetCalendarEvent: Codable, Equatable, Sendable {
+    var title: String
+    var start: Date
+    var end: Date
+
+    /// その時刻に行われている予定(重なっていれば、あとから始まったほう)。無ければ nil
+    static func current(in events: [WidgetCalendarEvent], at date: Date) -> WidgetCalendarEvent? {
+        events.filter { $0.start <= date && date < $0.end }.max { $0.start < $1.start }
     }
 }
 
@@ -88,6 +113,7 @@ enum WidgetTimeline {
         items: [PlanItem],
         dayKey: String,
         now: Date,
+        events: [WidgetCalendarEvent] = [],
         calendar: Calendar = DayKey.gregorian(),
         limit: Int = 40
     ) -> [Date] {
@@ -96,8 +122,9 @@ enum WidgetTimeline {
             if let start = item.startMinutes { minutes.insert(start) }
             if let end = item.endMinutes { minutes.insert(end) }
         }
-        let dates = minutes
-            .compactMap { DayKey.date(dayKey: dayKey, minutes: $0, calendar: calendar) }
+        // カレンダーの予定(授業など)の始まり・終わりでも、「今」の表示を切りかえる
+        let eventDates = events.flatMap { [$0.start, $0.end] }
+        let dates = Set(minutes.compactMap { DayKey.date(dayKey: dayKey, minutes: $0, calendar: calendar) } + eventDates)
             .filter { $0 > now }
             .sorted()
         let midnight = now.addingTimeInterval(DayKey.secondsUntilNextDay(now: now, calendar: calendar) + 1)

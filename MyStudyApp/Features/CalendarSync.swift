@@ -36,9 +36,10 @@ enum CalendarSync {
 
     // MARK: - 書き出し
 
-    /// 予定ブロックを「MyStudy」カレンダーに書き出す。
-    /// from〜to の期間について、カレンダー側をアプリの予定と同じ状態にそろえる
-    static func export(items: [PlanItem], from: String, to: String) {
+    /// 予定ブロックと睡眠を「MyStudy」カレンダーに書き出す。
+    /// from〜to の期間について、カレンダー側をアプリの予定と同じ状態にそろえる。
+    /// sleeps が nil(睡眠の予定を読めなかった)のときは、カレンダーの「睡眠」には手をつけない
+    static func export(items: [PlanItem], sleeps: [SleepPlan]? = nil, from: String, to: String) {
         guard isAuthorized, let calendar = mystudyCalendar(),
               let start = DayKey.date(dayKey: from, minutes: 0),
               let end = DayKey.date(dayKey: DayKey.adding(1, to: to), minutes: 0)
@@ -46,7 +47,10 @@ enum CalendarSync {
 
         // 期間内の、MyStudy カレンダーの予定を読む
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [calendar])
-        let events = store.events(matching: predicate)
+        let allEvents = store.events(matching: predicate)
+        // 睡眠(URL が mystudy://sleep/…)と、それ以外(予定)に分けて、別々にくらべる
+        let sleepEvents = allEvents.filter { CalendarSyncPlan.sleepId(from: $0.url) != nil }
+        let events = allEvents.filter { CalendarSyncPlan.sleepId(from: $0.url) == nil }
         let existing = events.map { event in
             ExistingCalendarEvent(
                 key: event.calendarItemIdentifier,
@@ -57,8 +61,24 @@ enum CalendarSync {
                 notes: event.notes
             )
         }
-        let byKey = Dictionary(events.map { ($0.calendarItemIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
+        let byKey = Dictionary(allEvents.map { ($0.calendarItemIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
         let changes = CalendarSyncPlan.diff(drafts: CalendarSyncPlan.drafts(items: items), existing: existing)
+
+        // 睡眠: 読めたときだけ、カレンダーの「睡眠」をそろえる
+        var sleepChanges = CalendarSyncPlan.Changes()
+        if let sleeps {
+            let existingSleeps = sleepEvents.map { event in
+                ExistingCalendarEvent(
+                    key: event.calendarItemIdentifier,
+                    itemId: CalendarSyncPlan.sleepId(from: event.url),
+                    title: event.title ?? "",
+                    start: event.startDate,
+                    end: event.endDate,
+                    notes: event.notes
+                )
+            }
+            sleepChanges = CalendarSyncPlan.diff(drafts: CalendarSyncPlan.sleepDrafts(sleeps), existing: existingSleeps)
+        }
 
         do {
             for draft in changes.create {
@@ -66,6 +86,21 @@ enum CalendarSync {
                 event.calendar = calendar
                 apply(draft, to: event)
                 try store.save(event, span: .thisEvent, commit: false)
+            }
+            for draft in sleepChanges.create {
+                let event = EKEvent(eventStore: store)
+                event.calendar = calendar
+                apply(draft, to: event, url: CalendarSyncPlan.sleepURL(for: draft.itemId))
+                try store.save(event, span: .thisEvent, commit: false)
+            }
+            for (key, draft) in sleepChanges.update {
+                guard let event = byKey[key] else { continue }
+                apply(draft, to: event, url: CalendarSyncPlan.sleepURL(for: draft.itemId))
+                try store.save(event, span: .thisEvent, commit: false)
+            }
+            for key in sleepChanges.delete {
+                guard let event = byKey[key] else { continue }
+                try store.remove(event, span: .thisEvent, commit: false)
             }
             for (key, draft) in changes.update {
                 guard let event = byKey[key] else { continue }
@@ -84,12 +119,12 @@ enum CalendarSync {
         }
     }
 
-    private static func apply(_ draft: CalendarEventDraft, to event: EKEvent) {
+    private static func apply(_ draft: CalendarEventDraft, to event: EKEvent, url: URL? = nil) {
         event.title = draft.title
         event.startDate = draft.start
         event.endDate = draft.end
         event.notes = draft.notes
-        event.url = CalendarSyncPlan.url(for: draft.itemId)
+        event.url = url ?? CalendarSyncPlan.url(for: draft.itemId)
     }
 
     /// 「MyStudy」カレンダーを探す。無ければ作る

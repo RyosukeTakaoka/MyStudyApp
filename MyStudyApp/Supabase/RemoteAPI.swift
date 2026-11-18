@@ -70,6 +70,17 @@ extension RemoteAPI {
             .value
     }
 
+    /// 睡眠の予定(その夜の日付が from〜to のもの)。カレンダーへの書き出しにだけ使う
+    func fetchSleeps(fromNight: String, toNight: String) async throws -> [SleepPlan] {
+        try await supabase
+            .from("sleep_plans")
+            .select("id, night, start_at, end_at, note")
+            .gte("night", value: fromNight)
+            .lte("night", value: toNight)
+            .execute()
+            .value
+    }
+
     func insertSessions(_ sessions: [StudySession]) async throws {
         guard !sessions.isEmpty else { return }
         try await supabase
