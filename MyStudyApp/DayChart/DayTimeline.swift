@@ -43,6 +43,8 @@ struct DayTimeline: Equatable {
         var seen = Set<UUID>()
         for session in sessions where !seen.contains(session.id) {
             seen.insert(session.id)
+            // 食事・移動などの生活の時間は、勉強の円グラフにも合計にも入れない
+            guard StudyKind.isStudy(subject: session.subject, title: session.title) else { continue }
             let start = max(session.startedAt, dayStart)
             let end = min(session.endedAt, dayEnd)
             guard end > start else { continue }

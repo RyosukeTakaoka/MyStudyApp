@@ -59,7 +59,10 @@ enum CalendarMath {
             var stat = result[item.date] ?? DayStat()
             stat.total += 1
             if item.done { stat.done += 1 }
-            stat.minutes += item.actualMinutes ?? 0
+            // 勉強時間には、食事・移動などの生活の時間を入れない
+            if item.isStudy {
+                stat.minutes += item.actualMinutes ?? 0
+            }
             result[item.date] = stat
         }
         return result
@@ -68,7 +71,7 @@ enum CalendarMath {
     /// 科目ごとの勉強時間(多い順)。時間の記録が無い科目は出さない
     static func minutesBySubject(_ items: [PlanItem]) -> [SubjectMinutes] {
         var totals: [String: Int] = [:]
-        for item in items {
+        for item in items where item.isStudy {   // 生活の時間は入れない
             totals[item.subject, default: 0] += item.actualMinutes ?? 0
         }
         return totals

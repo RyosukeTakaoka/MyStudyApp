@@ -337,6 +337,9 @@ select * from public.replace_week_plan(
 - **タイマーは同時にいくつも動かせます**(例: 夕食 30分 のあいだに Anki 10分)。時間が重なった区間は、それぞれの予定に記録されます。
   1日の「勉強した合計時間」を出すときは、重なりを二重に数えないように気をつけてください(例: 夕食などの勉強でない予定は合計から外す)
 - 同じ予定でタイマーを何回か使うと、`actual_minutes` はその合計になります
+- **勉強時間の合計には、生活の時間(`subject = '生活'`、食事・移動など)を入れないでください。**
+  アプリの円グラフと月のカレンダーも、生活の時間を外して合計しています(1章の「`subject` の推奨値」の下にある見分け方と同じ)。
+  SQL では `where subject <> '生活'` を付けます
 
 ### 予定と実績をくらべる(1週間ぶん)
 
@@ -357,6 +360,7 @@ select subject, sum(minutes) as total_minutes, count(*) as sessions
 from study_sessions
 where user_id = 'ここにuser_idを入れる'
   and (started_at at time zone 'Asia/Tokyo')::date between '2026-11-09' and '2026-11-15'
+  and subject <> '生活'   -- 生活の時間(食事・移動など)は勉強時間に入れない
 group by subject
 order by total_minutes desc;
 ```
