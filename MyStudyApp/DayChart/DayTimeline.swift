@@ -18,6 +18,8 @@ struct TimelineSegment: Identifiable, Equatable {
 struct SubjectTotal: Equatable, Identifiable {
     let subject: String
     let minutes: Int
+    /// 勉強時間の合計に入れるか(生活の時間は false)
+    var isStudy: Bool = true
     var id: String { subject }
 }
 
@@ -27,7 +29,7 @@ struct DayTimeline: Equatable {
     var segments: [TimelineSegment]
     /// 輪の数(同時に動いていたタイマーの数の最大)
     var laneCount: Int
-    /// 勉強した合計(分)。同時に動かしていた時間は1回だけ数える
+    /// 勉強した合計(分)。同時に動かしていた時間は1回だけ数える。生活の時間(食事・移動など)は入れない
     var totalMinutes: Int
     var subjectTotals: [SubjectTotal]
 
@@ -43,8 +45,6 @@ struct DayTimeline: Equatable {
         var seen = Set<UUID>()
         for session in sessions where !seen.contains(session.id) {
             seen.insert(session.id)
-            // 食事・移動などの生活の時間は、勉強の円グラフにも合計にも入れない
-            guard StudyKind.isStudy(subject: session.subject, title: session.title) else { continue }
             let start = max(session.startedAt, dayStart)
             let end = min(session.endedAt, dayEnd)
             guard end > start else { continue }
@@ -71,11 +71,12 @@ struct DayTimeline: Equatable {
                                             title: piece.title, subject: piece.subject, lane: lane))
         }
 
-        // 合計: 重なりは1回だけ数える
+        // 合計: 重なりは1回だけ数える。
+        // 食事・移動などの生活の時間は、円グラフと一覧には描くが、勉強時間の合計には入れない
         var total = 0.0
         var currentStart: Double?
         var currentEnd = 0.0
-        for piece in pieces {
+        for piece in pieces where StudyKind.isStudy(subject: piece.subject, title: piece.title) {
             if let start = currentStart, piece.start <= currentEnd {
                 currentEnd = max(currentEnd, piece.end)
                 currentStart = start
@@ -88,12 +89,23 @@ struct DayTimeline: Equatable {
         if let start = currentStart { total += currentEnd - start }
 
         // 科目ごとの合計(多い順)
+        // 勉強の科目は科目ごとに。生活の時間(「その他」の夕食などもふくむ)は、最後に「生活」1行にまとめる
         var bySubject: [String: Double] = [:]
-        for piece in pieces { bySubject[piece.subject, default: 0] += piece.end - piece.start }
-        let subjectTotals = bySubject
+        var lifeMinutes = 0.0
+        for piece in pieces {
+            if StudyKind.isStudy(subject: piece.subject, title: piece.title) {
+                bySubject[piece.subject, default: 0] += piece.end - piece.start
+            } else {
+                lifeMinutes += piece.end - piece.start
+            }
+        }
+        var subjectTotals = bySubject
             .map { SubjectTotal(subject: $0.key, minutes: Int($0.value.rounded())) }
             .filter { $0.minutes > 0 }
             .sorted { $0.minutes != $1.minutes ? $0.minutes > $1.minutes : $0.subject < $1.subject }
+        if Int(lifeMinutes.rounded()) > 0 {
+            subjectTotals.append(SubjectTotal(subject: "生活", minutes: Int(lifeMinutes.rounded()), isStudy: false))
+        }
 
         return DayTimeline(segments: segments, laneCount: max(1, laneEnds.count),
                            totalMinutes: Int(total.rounded()), subjectTotals: subjectTotals)

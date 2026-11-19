@@ -31,9 +31,16 @@ struct DayChartSection: View {
                 ForEach(timeline.subjectTotals) { total in
                     HStack {
                         SubjectTag(subject: total.subject)
+                        if !total.isStudy {
+                            // 生活の時間は、グラフには描くが、まん中の勉強時間には入れない
+                            Text("勉強時間に入れない")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         Text(NowNext.durationText(total.minutes))
                             .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(total.isStudy ? Color.primary : Color.secondary)
                     }
                 }
 
