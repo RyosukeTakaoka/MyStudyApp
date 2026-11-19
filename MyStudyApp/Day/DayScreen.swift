@@ -113,8 +113,12 @@ struct DayScreen: View {
                     loadCalendarEvents()
                 }
             }
-            .onChange(of: focusAutoBlocks) { _, _ in
+            .onChange(of: focusAutoBlocks) { _, enabled in
                 rescheduleFocus()
+                // オンにしたのに、スクリーンタイムの許可や使ってよいアプリの選択がまだなら、設定画面を開く
+                if enabled && !screenTime.isReady {
+                    showsFocusSettings = true
+                }
             }
             // 予定をチェックしたら、その予定の自動の集中モードを外す
             .onChange(of: store.doneCount) { _, _ in
@@ -336,8 +340,10 @@ struct DayScreen: View {
             .accessibilityLabel("予定を足す")
 
             Menu {
-                Toggle(isOn: $autoTimerEnabled) {
-                    Label("自動タイマー", systemImage: "timer")
+                // 自動タイマーは使わないので、メニューには「予定の時間に自動で集中モード」を出す
+                // (自動タイマーの設定はオフのまま残る)
+                Toggle(isOn: $focusAutoBlocks) {
+                    Label("予定の時間に自動で集中モード", systemImage: "lock.fill")
                 }
                 Toggle(isOn: $remindersEnabled) {
                     Label("開始時刻に通知", systemImage: "bell")
