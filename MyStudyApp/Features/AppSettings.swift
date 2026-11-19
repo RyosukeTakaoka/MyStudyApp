@@ -12,4 +12,16 @@ enum AppSettings {
     static let focusAutoBlocksKey = "settings.focusAutoBlocks"
     /// iPhone のカレンダーと連携するか
     static let calendarSyncKey = "settings.calendarSync"
+
+    /// 「自動タイマーはオフ・予定の時間は自動で集中モード」に1回だけ切りかえたか
+    private static let focusAutoMigrationKey = "settings.migrated.focusAutoInsteadOfAutoTimer"
+
+    /// 自動タイマーは使わず、予定の時間に自動で集中モード(スクリーンタイム)にする設定へ、1回だけ切りかえる。
+    /// (ユーザーの希望。切りかえたあとは、メニューや集中モードの設定で自由に戻せる)
+    static func applyFocusAutoDefaultsOnce(_ defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: focusAutoMigrationKey) else { return }
+        defaults.set(false, forKey: autoTimerKey)
+        defaults.set(true, forKey: focusAutoBlocksKey)
+        defaults.set(true, forKey: focusAutoMigrationKey)
+    }
 }

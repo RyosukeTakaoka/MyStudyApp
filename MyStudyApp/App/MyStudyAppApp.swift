@@ -5,6 +5,9 @@ import SwiftUI
 @main
 struct MyStudyAppApp: App {
     init() {
+        // 自動タイマーはオフ・予定の時間は自動で集中モード、に1回だけ切りかえる(ユーザーの希望)
+        AppSettings.applyFocusAutoDefaultsOnce()
+
         // ウィジェットのボタンでタイマーが変わったとき(アプリの中で動く)に、
         // ロック画面のライブアクティビティを直し、画面に「読み直して」と知らせる
         TimerWidgetActions.onChange = { event in

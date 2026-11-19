@@ -5,7 +5,7 @@ import SwiftUI
 struct FocusSettingsView: View {
     @Bindable var screenTime: ScreenTimeController
     @AppStorage(AppSettings.focusDuringTimerKey) private var duringTimer = true
-    @AppStorage(AppSettings.focusAutoBlocksKey) private var autoBlocks = false
+    @AppStorage(AppSettings.focusAutoBlocksKey) private var autoBlocks = true
     @State private var showsPicker = false
     @Environment(\.dismiss) private var dismiss
 

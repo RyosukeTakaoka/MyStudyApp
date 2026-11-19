@@ -24,7 +24,7 @@ enum LiveActivityController {
         do {
             _ = try Activity.request(
                 attributes: attributes,
-                content: ActivityContent(state: state, staleDate: nil),
+                content: ActivityContent(state: state, staleDate: nil, relevanceScore: relevance(timer)),
                 pushType: nil   // サーバーからの更新は使わない
             )
         } catch {
@@ -39,9 +39,15 @@ enum LiveActivityController {
             state.startedAt = timer.displayStart
             state.pausedElapsed = timer.isPaused ? timer.priorSeconds + timer.accumulatedSeconds : nil
             Task {
-                await activity.update(ActivityContent(state: state, staleDate: nil))
+                await activity.update(ActivityContent(state: state, staleDate: nil, relevanceScore: relevance(timer)))
             }
         }
+    }
+
+    /// 表示の大事さ。タイマーが2つ以上あるとき、iPhone はこの数が大きいものをダイナミックアイランドに出す。
+    /// 動いているタイマーを、一時停止中のタイマーより先に出す
+    private static func relevance(_ timer: RunningTimer) -> Double {
+        timer.isPaused ? 10 : 100
     }
 
     /// その予定の表示を消す

@@ -25,7 +25,7 @@ struct DayScreen: View {
     @State private var screenTime = ScreenTimeController()
     @State private var showsFocusSettings = false
     @AppStorage(AppSettings.focusDuringTimerKey) private var focusDuringTimer = true
-    @AppStorage(AppSettings.focusAutoBlocksKey) private var focusAutoBlocks = false
+    @AppStorage(AppSettings.focusAutoBlocksKey) private var focusAutoBlocks = true
     /// iPhone のカレンダー連携
     @AppStorage(AppSettings.calendarSyncKey) private var calendarSyncEnabled = false
     /// 表示中の日の、ほかのカレンダーの予定
@@ -33,7 +33,7 @@ struct DayScreen: View {
     /// 最後にウィジェットへ渡したデータ(カレンダーの予定を足して渡し直すときに使う)
     @State private var lastWidgetSnapshot: WidgetSnapshot?
     /// 設定(端末に保存される)
-    @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = true
+    @AppStorage(AppSettings.autoTimerKey) private var autoTimerEnabled = false
     @AppStorage(AppSettings.remindersKey) private var remindersEnabled = false
     /// アプリが前面にあるか・裏に回ったか
     @Environment(\.scenePhase) private var scenePhase
