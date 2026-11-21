@@ -40,8 +40,15 @@ struct DayScreen: View {
     /// 画面の横幅の種類(iPad の広い画面だと .regular、iPhone の縦向きだと .compact)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// ログインしている人の id(タイマーをサーバーで共有するときに使う)
+    private let userId: UUID
+    /// タイマーの共有の通信中か / 通信中にもう一度頼まれたか
+    @State private var isSyncingTimers = false
+    @State private var timerSyncAgain = false
+
     init(auth: AuthStore, userId: UUID, local: LocalStore) {
         self.auth = auth
+        self.userId = userId
         // @State の最初の値を、引数を使って作る書き方
         _store = State(initialValue: DayStore(userId: userId, local: local))
     }
@@ -83,6 +90,7 @@ struct DayScreen: View {
                 restoreLiveActivity()
                 screenTime.refresh()
                 checkAutoTimer()
+                requestTimerSync()
             }
             // 画面が出ているあいだ、30秒ごとに自動タイマーの開始・終了を確かめる
             .task {
@@ -90,6 +98,8 @@ struct DayScreen: View {
                     try? await Task.sleep(for: .seconds(30))
                     checkAutoTimer()
                     screenTime.refresh()
+                    // ほかの端末(iPhone / iPad)で始めた・止めたタイマーを取りこむ
+                    requestTimerSync()
                 }
             }
             // 同期が終わるたびに、通知を予約しなおす(Claude が予定を変えても通知が合うように)
@@ -177,6 +187,7 @@ struct DayScreen: View {
                     // 開き直したら、ウィジェットでのチェックを取りこみ、日付の変化を確認して同期する
                     store.applyWidgetToggles(SharedStore.takePendingToggles())
                     applyWidgetTimerEvents()
+                    requestTimerSync()
                     store.refreshToday()
                     store.requestSync()
                     screenTime.refresh()
@@ -196,6 +207,11 @@ struct DayScreen: View {
             // 電波がつながった/切れたとき(つながった瞬間に、たまっていた変更を送る)
             .onChange(of: network.isOnline) { _, online in
                 store.setOnline(online)
+                if online { requestTimerSync() }
+            }
+            // この端末でタイマーを変えたら(始めた・一時停止・再開・終了)、すぐサーバーへ送る
+            .onChange(of: timer.timers) { _, _ in
+                if !timer.dirtyItemIds.isEmpty { requestTimerSync() }
             }
             // 長押しでタイマーを始めたら、いちばん上のタイマーまで移動する
             .onChange(of: scrollToTimerRequest) { _, _ in
@@ -526,6 +542,47 @@ struct DayScreen: View {
         updateFocusForTimers()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
+    }
+
+    // MARK: - タイマーの共有(iPhone と iPad)
+
+    /// タイマーをサーバーと合わせる(通信中に頼まれたら、終わってからもう一度)
+    private func requestTimerSync() {
+        guard network.isOnline else { return }
+        if isSyncingTimers {
+            timerSyncAgain = true
+            return
+        }
+        isSyncingTimers = true
+        Task { @MainActor in
+            defer { isSyncingTimers = false }
+            repeat {
+                timerSyncAgain = false
+                do {
+                    let changes = try await TimerSync.sync(timer: timer, userId: userId, api: RemoteAPI())
+                    applyTimerChanges(changes)
+                } catch {
+                    // 送れなかった変更は覚えてあるので、次の機会(30秒後・電波が戻ったとき)にまた送る
+                    print("タイマーの共有に失敗: \(error)")
+                    return
+                }
+            } while timerSyncAgain
+        }
+    }
+
+    /// ほかの端末で始めた・変えた・止めたタイマーに合わせて、ライブアクティビティと集中モードを直す
+    private func applyTimerChanges(_ changes: TimerRemoteChanges) {
+        guard !changes.isEmpty else { return }
+        for itemId in changes.removed {
+            LiveActivityController.end(itemId: itemId)
+        }
+        for running in changes.changed {
+            LiveActivityController.update(running)
+        }
+        for running in changes.added {
+            showLiveActivity(for: running)
+        }
+        updateFocusForTimers()
     }
 
     /// ウィジェットのボタンで変わったタイマーを読み直し、止めた区間・勉強時間を記録に取りこむ

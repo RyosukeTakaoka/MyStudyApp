@@ -87,6 +87,8 @@ final class StudyTimer {
     /// 前の版(タイマーが1つだけだったころ)の保存場所
     private static let legacyRunningKey = "studyTimer.running"
     private static let autoStartedKey = "studyTimer.lastAutoStarted"
+    /// サーバーにまだ送っていない変更(予定の id → 変えた時刻)。ほかの端末と共有するために使う
+    private static let dirtyKey = "studyTimer.dirty"
 
     /// defaults: タイマーを保存する場所。ふだんは App Group(アプリとウィジェットの共有の場所)。
     ///   ウィジェットのボタンからも、同じタイマーを一時停止・終了できるようにするため
@@ -141,6 +143,7 @@ final class StudyTimer {
         timers.removeAll { $0.itemId == timer.itemId }
         timers.append(timer)
         save()
+        markDirty(timer.itemId)
     }
 
     /// 一時停止する(それまでの時間は覚えておく)。止めた区間の記録を返す
@@ -153,6 +156,7 @@ final class StudyTimer {
         timer.pausedAt = now
         timers[index] = timer
         save()
+        markDirty(itemId)
         return session
     }
 
@@ -162,6 +166,7 @@ final class StudyTimer {
         timers[index].startedAt = now
         timers[index].pausedAt = nil
         save()
+        markDirty(itemId)
     }
 
     /// タイマーを止めて、かかった分数を返す(動いていなければ nil)。一時停止していた時間はふくまない。
@@ -172,6 +177,7 @@ final class StudyTimer {
         guard let index = timers.firstIndex(where: { $0.itemId == itemId }) else { return nil }
         let timer = timers.remove(at: index)
         save()
+        markDirty(itemId)
         var end = now
         if timer.isAuto, let plannedEnd = timer.plannedEnd, plannedEnd < now {
             end = plannedEnd
@@ -187,6 +193,69 @@ final class StudyTimer {
     func cancelAll() {
         timers = []
         save()
+        defaults.removeObject(forKey: Self.dirtyKey)
+    }
+
+    // MARK: - ほかの端末との共有(サーバーの running_timers)
+
+    /// サーバーにまだ送っていない予定(始めた・一時停止・再開・終了した予定)
+    var dirtyItemIds: [UUID] {
+        dirtyStamps.keys.compactMap(UUID.init(uuidString:))
+    }
+
+    /// その予定を最後に変えた時刻(送り終わったかを確かめるのに使う)
+    func dirtyStamp(_ itemId: UUID) -> Date? {
+        dirtyStamps[itemId.uuidString].map { Date(timeIntervalSince1970: $0) }
+    }
+
+    /// 送り終わった印。送っているあいだにまた変えていたら、消さない(もう一度送る)
+    func clearDirty(_ itemId: UUID, ifUnchangedSince stamp: Date) {
+        var stamps = dirtyStamps
+        guard let current = stamps[itemId.uuidString], current <= stamp.timeIntervalSince1970 else { return }
+        stamps[itemId.uuidString] = nil
+        defaults.set(stamps, forKey: Self.dirtyKey)
+    }
+
+    /// サーバーのタイマー(ほかの端末で始めた・止めたものもふくむ)を取りこむ。
+    /// まだ送っていない予定は、この端末のほうを残す。それ以外はサーバーに合わせる
+    @discardableResult
+    func applyRemote(_ remote: [RunningTimer]) -> TimerRemoteChanges {
+        let dirty = Set(dirtyItemIds)
+        var changes = TimerRemoteChanges()
+        var result: [RunningTimer] = []
+        for local in timers {
+            if dirty.contains(local.itemId) {
+                result.append(local)
+            } else if let server = remote.first(where: { $0.itemId == local.itemId }) {
+                if server.sameState(as: local) {
+                    result.append(local)
+                } else {
+                    result.append(server)
+                    changes.changed.append(server)
+                }
+            } else {
+                changes.removed.append(local.itemId)   // ほかの端末で止めた
+            }
+        }
+        for server in remote where !dirty.contains(server.itemId) && !timers.contains(where: { $0.itemId == server.itemId }) {
+            result.append(server)                       // ほかの端末で始めた
+            changes.added.append(server)
+        }
+        if !changes.isEmpty {
+            timers = result
+            save()
+        }
+        return changes
+    }
+
+    private var dirtyStamps: [String: Double] {
+        (defaults.dictionary(forKey: Self.dirtyKey) as? [String: Double]) ?? [:]
+    }
+
+    private func markDirty(_ itemId: UUID, now: Date = Date()) {
+        var stamps = dirtyStamps
+        stamps[itemId.uuidString] = now.timeIntervalSince1970
+        defaults.set(stamps, forKey: Self.dirtyKey)
     }
 
     /// 予定の終了時刻を過ぎた、自動タイマーの予定
@@ -225,6 +294,32 @@ final class StudyTimer {
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadTimelines(ofKind: TimerWidgetKind.kind)
         #endif
+    }
+}
+
+/// サーバーのタイマーを取りこんだときに変わったもの(ライブアクティビティを直すのに使う)
+struct TimerRemoteChanges: Equatable {
+    var added: [RunningTimer] = []
+    var changed: [RunningTimer] = []
+    var removed: [UUID] = []
+
+    var isEmpty: Bool { added.isEmpty && changed.isEmpty && removed.isEmpty }
+}
+
+extension RunningTimer {
+    /// 同じ状態か(サーバーを通すと時刻が少しだけずれるので、1秒までの差は同じとみなす)
+    func sameState(as other: RunningTimer) -> Bool {
+        func close(_ a: Date?, _ b: Date?) -> Bool {
+            switch (a, b) {
+            case (nil, nil): return true
+            case let (a?, b?): return abs(a.timeIntervalSince(b)) < 1
+            default: return false
+            }
+        }
+        return itemId == other.itemId && title == other.title && subject == other.subject
+            && close(startedAt, other.startedAt) && close(pausedAt, other.pausedAt) && close(plannedEnd, other.plannedEnd)
+            && abs(accumulatedSeconds - other.accumulatedSeconds) < 1 && abs(priorSeconds - other.priorSeconds) < 1
+            && isAuto == other.isAuto && itemDate == other.itemDate
     }
 }
 
