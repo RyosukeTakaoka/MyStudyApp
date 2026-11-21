@@ -23,6 +23,54 @@ struct FocusFlags: Codable, Equatable {
     }
 }
 
+// 時間帯が重なったときの決まり(例: 自動の集中モード 13:20〜19:00 の途中で、タイマーを始めた)
+//   ・新しい時間帯は、今の時間帯より長く続くときだけ置きかえる(短いほうに置きかえて、早く外れないように)
+//   ・時間帯が終わった・止めたときは、まだ続いている自動の時間帯があれば、そちらに切りかえる
+//     (タイマーを止めても、予定の時間の集中モードは続く)
+extension FocusFlags {
+    /// 新しい時間帯を始める。今かかっている時間帯のほうが長く続くなら、そのまま(false を返す)
+    @discardableResult
+    mutating func begin(name: String, end: Date, now: Date) -> Bool {
+        if let current = windowEnd, windowName != nil, current > now, current >= end {
+            return false
+        }
+        windowEnd = end
+        windowName = name
+        return true
+    }
+
+    /// 時間帯 name が終わった(止めた)とき。今かかっているのが別の時間帯なら、何もしない。
+    /// 外したあと、まだ続いている自動の時間帯(blocks)があれば、いちばん長く続くものに切りかえる
+    mutating func finish(name: String?, now: Date, blocks: [FocusPlan.Window]) {
+        guard name == nil || windowName == name else { return }
+        windowEnd = nil
+        windowName = nil
+        let covering = blocks.filter { block in
+            block.name != name && block.start <= now && now < block.end && !dismissed.contains(block.name)
+        }
+        if let next = covering.max(by: { $0.end < $1.end }) {
+            windowEnd = next.end
+            windowName = next.name
+        }
+    }
+}
+
+/// 登録した自動の時間帯の一覧(アプリと拡張機能の両方が読む。重なったときの切りかえに使う)
+enum FocusBlockStore {
+    private static let key = "focus.blockWindows"
+
+    static func load(_ defaults: UserDefaults) -> [FocusPlan.Window] {
+        guard let data = defaults.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([FocusPlan.Window].self, from: data)) ?? []
+    }
+
+    static func save(_ windows: [FocusPlan.Window], _ defaults: UserDefaults) {
+        if let data = try? JSONEncoder().encode(windows) {
+            defaults.set(data, forKey: key)
+        }
+    }
+}
+
 /// FocusFlags の保存場所(App Group の UserDefaults)
 enum FocusFlagsStore {
     private static let key = "focus.flags"
@@ -47,7 +95,7 @@ enum FocusPlan {
     /// 一度に登録できる数には上限(20)があるので、余裕をもって少なめにする
     static let maxBlockWindows = 15
 
-    struct Window: Equatable {
+    struct Window: Codable, Equatable {
         let name: String
         let start: Date
         let end: Date

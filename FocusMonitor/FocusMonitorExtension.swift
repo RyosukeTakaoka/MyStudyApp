@@ -9,8 +9,8 @@ class FocusMonitorExtension: DeviceActivityMonitor {
         super.intervalDidStart(for: activity)
         guard let end = FocusPlan.endDate(fromName: activity.rawValue) else { return }
         var flags = FocusFlagsStore.load(AppGroup.defaults)
-        flags.windowEnd = end
-        flags.windowName = activity.rawValue
+        // 今かかっている時間帯(タイマーなど)のほうが長く続くなら、そちらのまま
+        flags.begin(name: activity.rawValue, end: end, now: Date())
         FocusFlagsStore.save(flags, AppGroup.defaults)
         FocusShield.sync()
     }
@@ -19,12 +19,10 @@ class FocusMonitorExtension: DeviceActivityMonitor {
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
         var flags = FocusFlagsStore.load(AppGroup.defaults)
-        // ほかの集中モードに上書きされていたら、そちらは止めない
-        if flags.windowName == activity.rawValue {
-            flags.windowEnd = nil
-            flags.windowName = nil
-            FocusFlagsStore.save(flags, AppGroup.defaults)
-        }
+        // ほかの集中モードに上書きされていたら、そちらは止めない。
+        // 外したあと、まだ続いている自動の時間帯があれば、そちらに切りかえる
+        flags.finish(name: activity.rawValue, now: Date(), blocks: FocusBlockStore.load(AppGroup.defaults))
+        FocusFlagsStore.save(flags, AppGroup.defaults)
         FocusShield.sync()
     }
 }

@@ -57,10 +57,10 @@ final class ScreenTimeController {
     func refresh() {
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
         flags = FocusFlagsStore.load(AppGroup.defaults)
-        // 終わりの時刻を過ぎていたら記録を消す(拡張機能が動かなかったときの保険)
+        // 終わりの時刻を過ぎていたら外す(拡張機能が動かなかったときの保険)。
+        // まだ続いている自動の時間帯があれば、そちらに切りかえる
         if let end = flags.windowEnd, end <= Date() {
-            flags.windowEnd = nil
-            flags.windowName = nil
+            flags.finish(name: flags.windowName, now: Date(), blocks: FocusBlockStore.load(AppGroup.defaults))
             save()
         }
         FocusShield.sync()
@@ -81,9 +81,13 @@ final class ScreenTimeController {
     }
 
     /// タイマーを止めたとき(タイマーでかけた集中モードだけを終える)
+    /// 予定の時間の集中モード(自動)がまだ続いていれば、そちらに切りかえる
     func endForTimer() {
         guard let name = flags.windowName, FocusPlan.kind(fromName: name) == "timer" else { return }
-        endNow()
+        center.stopMonitoring([DeviceActivityName(name)])
+        flags.finish(name: name, now: Date(), blocks: FocusBlockStore.load(AppGroup.defaults))
+        save()
+        FocusShield.sync()
     }
 
     /// 今かかっている集中モードを、今すぐ終える
@@ -105,13 +109,17 @@ final class ScreenTimeController {
             errorMessage = "先に「スクリーンタイムの許可」と「使ってよいアプリ」の選択をしてください。"
             return
         }
+        let name = FocusPlan.name(kind: kind, end: end, id: String(UUID().uuidString.prefix(8)))
+        let old = flags.windowName
+        // 今かかっている時間帯(予定の時間の自動など)のほうが長く続くなら、そのまま(置きかえない)
+        guard flags.begin(name: name, end: end, now: now) else {
+            errorMessage = nil
+            return
+        }
         // 前の手動・タイマーの監視は止める(予定ブロックの監視は残す)
-        if let old = flags.windowName, FocusPlan.kind(fromName: old) != "block" {
+        if let old, FocusPlan.kind(fromName: old) != "block" {
             center.stopMonitoring([DeviceActivityName(old)])
         }
-        let name = FocusPlan.name(kind: kind, end: end, id: String(UUID().uuidString.prefix(8)))
-        flags.windowEnd = end
-        flags.windowName = name
         save()
         FocusShield.sync()   // すぐに制限をかける
 
@@ -149,11 +157,14 @@ final class ScreenTimeController {
             }
         }
         AppGroup.defaults.set(registered, forKey: Self.scheduledKey)
+        // 重なったときの切りかえ用に、登録できた時間帯を覚えておく(拡張機能も読む)
+        let registeredWindows = windows.filter { registered.contains($0.name) }
+        FocusBlockStore.save(registeredWindows, AppGroup.defaults)
 
         // 予定がチェックされたり消されたりして、かかっている予定ブロックの集中モードが不要になったら外す
+        // (ほかに今かかるべき自動の時間帯があれば、そちらに切りかえる)
         if let active = flags.windowName, FocusPlan.kind(fromName: active) == "block", !newNames.contains(active) {
-            flags.windowEnd = nil
-            flags.windowName = nil
+            flags.finish(name: active, now: now, blocks: registeredWindows)
         }
         save()
         FocusShield.sync()
@@ -166,6 +177,7 @@ final class ScreenTimeController {
         DeviceActivityCenter().stopMonitoring()
         FocusFlagsStore.save(FocusFlags(), AppGroup.defaults)
         AppGroup.defaults.removeObject(forKey: scheduledKey)
+        FocusBlockStore.save([], AppGroup.defaults)
         FocusShield.clear()
     }
 
