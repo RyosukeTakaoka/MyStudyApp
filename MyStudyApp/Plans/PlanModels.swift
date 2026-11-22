@@ -82,8 +82,8 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
     /// 曜日の名前(箱がちょうど7つで名前が無いときに使う)
     static let weekdayNames = ["月", "火", "水", "木", "金", "土", "日"]
 
-    /// 箱 box(1から)に出す文字。
-    /// weekdays = true のとき: 名前があればその名前、名前が無く箱が7つなら 月〜日、それ以外は番号。
+    /// 箱 box(1から)に出す文字。箱ごとに決める(例 月 月 月 火 水 水 … のようにもできる)。
+    /// weekdays = true のとき: その箱に名前があればその名前、無ければ「箱が7つなら月〜日、それ以外は番号」。
     /// weekdays = false のとき: いつも番号。箱が1つだけなら「✓」
     func boxLabel(_ box: Int, weekdays: Bool) -> String {
         if targetCount == 1 { return "✓" }
@@ -91,11 +91,23 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
             if box >= 1, box <= boxLabels.count {
                 let label = boxLabels[box - 1].trimmingCharacters(in: .whitespaces)
                 if !label.isEmpty { return label }
-            } else if boxLabels.isEmpty, targetCount == 7, (1...7).contains(box) {
+            }
+            if targetCount == 7, (1...7).contains(box) {
                 return Self.weekdayNames[box - 1]
             }
         }
         return "\(box)"
+    }
+
+    /// 箱 box の名前を label にしたあとの、名前の一覧(nil なら名前を消す = 自動の表示に戻す)。
+    /// 足りない箱は空("")でうめ、うしろの空は取りのぞく
+    static func boxLabels(afterSetting box: Int, to label: String?, current: [String], target: Int) -> [String] {
+        guard (1...max(target, 1)).contains(box) else { return current }
+        var labels = Array(current.prefix(target))
+        while labels.count < box { labels.append("") }
+        labels[box - 1] = label?.trimmingCharacters(in: .whitespaces) ?? ""
+        while let last = labels.last, last.isEmpty { labels.removeLast() }
+        return labels
     }
 }
 

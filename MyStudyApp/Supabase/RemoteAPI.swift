@@ -209,6 +209,15 @@ extension RemoteAPI: PlanBoardAPI {
             .eq("id", value: id)
             .execute()
     }
+
+    /// 箱の名前(曜日など)を保存する
+    func updateGoalLabels(id: UUID, labels: [String]) async throws {
+        try await supabase
+            .from("week_goals")
+            .update(["box_labels": labels], returning: .minimal)
+            .eq("id", value: id)
+            .execute()
+    }
 }
 
 /// ふりかえりの保存で送る中身。goal をふくめないので、Claude が書いた目標は消えない

@@ -58,6 +58,9 @@ struct PlanBoardScreen: View {
                                     onTapBox: { box, goal in
                                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                         store.tapBox(box, of: goal)
+                                    },
+                                    onLabelBox: { box, goal, label in
+                                        store.setBoxLabel(box, of: goal, to: label)
                                     }
                                 )
                                 .id(section.id)
@@ -188,6 +191,8 @@ private struct WeekCard: View {
     let section: WeekSection
     let isCurrent: Bool
     let onTapBox: (Int, WeekGoal) -> Void
+    /// 箱を長押しして名前(曜日)を選んだとき(nil = 名前を消す)
+    let onLabelBox: (Int, WeekGoal, String?) -> Void
 
     var body: some View {
         let color = PlanColor.color(section.week.color)
@@ -246,7 +251,8 @@ private struct WeekCard: View {
                             .font(.caption.bold())
                             .foregroundStyle(.secondary)
                         ForEach(group.goals) { goal in
-                            GoalRow(goal: goal) { box in onTapBox(box, goal) }
+                            GoalRow(goal: goal, onTap: { box in onTapBox(box, goal) },
+                                    onLabel: { box, label in onLabelBox(box, goal, label) })
                             if goal.id != group.goals.last?.id {
                                 Divider()
                             }
@@ -272,6 +278,8 @@ private struct WeekCard: View {
 private struct GoalRow: View {
     let goal: WeekGoal
     let onTap: (Int) -> Void
+    /// 長押しで名前を選んだとき(nil = 名前を消す)
+    let onLabel: (Int, String?) -> Void
     /// 箱に曜日(名前)を出すか。オフなら番号
     @AppStorage(AppSettings.boxWeekdaysKey) private var showsWeekdays = true
 
@@ -312,6 +320,17 @@ private struct GoalRow: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    // 長押しで、この箱の曜日を1つずつ選ぶ(例 月 月 月 火 水 水 … のようにできる)
+                    .contextMenu {
+                        if goal.targetCount > 1 {
+                            ForEach(WeekGoal.weekdayNames, id: \.self) { day in
+                                Button(day) { onLabel(box, day) }
+                            }
+                            Divider()
+                            Button("番号(\(box))", systemImage: "number") { onLabel(box, "\(box)") }
+                            Button("名前を消す", systemImage: "xmark", role: .destructive) { onLabel(box, nil) }
+                        }
+                    }
                     .accessibilityLabel("\(goal.title) \(goal.boxLabel(box, weekdays: showsWeekdays))")
                     .accessibilityValue(done ? "できた" : "まだ")
                 }
