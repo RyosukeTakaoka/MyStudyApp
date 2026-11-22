@@ -7,6 +7,8 @@ struct PlanBoardScreen: View {
     let store: PlanBoardStore
     /// 画面の横幅の種類(iPad の広い画面だと .regular)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// 箱に曜日(名前)を出すか(上のバーで切りかえる。端末に保存される)
+    @AppStorage(AppSettings.boxWeekdaysKey) private var showsWeekdays = true
 
     private var isWide: Bool { horizontalSizeClass == .regular }
 
@@ -71,6 +73,15 @@ struct PlanBoardScreen: View {
                 .navigationTitle("週・月の計画")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    // 箱に曜日を出すか、番号を出すか
+                    ToolbarItem(placement: .topBarLeading) {
+                        Picker("箱の表示", selection: $showsWeekdays) {
+                            Text("曜日").tag(true)
+                            Text("番号").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("今週") {
                             withAnimation { proxy.scrollTo(store.currentWeekStart, anchor: .top) }
@@ -261,6 +272,8 @@ private struct WeekCard: View {
 private struct GoalRow: View {
     let goal: WeekGoal
     let onTap: (Int) -> Void
+    /// 箱に曜日(名前)を出すか。オフなら番号
+    @AppStorage(AppSettings.boxWeekdaysKey) private var showsWeekdays = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -286,8 +299,10 @@ private struct GoalRow: View {
                     Button {
                         onTap(box)
                     } label: {
-                        Text(goal.targetCount == 1 ? "✓" : "\(box)")
+                        Text(goal.boxLabel(box, weekdays: showsWeekdays))
                             .font(.footnote.monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                             .frame(width: 36, height: 36)
                             .foregroundStyle(done ? Color.white : Color.secondary)
                             .background(done ? Color.green : Color.clear, in: RoundedRectangle(cornerRadius: 8))
@@ -297,7 +312,7 @@ private struct GoalRow: View {
                             }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(goal.title) \(box)")
+                    .accessibilityLabel("\(goal.title) \(goal.boxLabel(box, weekdays: showsWeekdays))")
                     .accessibilityValue(done ? "できた" : "まだ")
                 }
             }

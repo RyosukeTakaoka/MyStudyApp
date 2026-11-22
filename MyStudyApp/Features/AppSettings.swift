@@ -12,6 +12,8 @@ enum AppSettings {
     static let focusAutoBlocksKey = "settings.focusAutoBlocks"
     /// iPhone のカレンダーと連携するか
     static let calendarSyncKey = "settings.calendarSync"
+    /// 「週・月」タブの箱に、番号の代わりに曜日(名前)を出すか
+    static let boxWeekdaysKey = "settings.boxWeekdays"
 
     /// 「自動タイマーはオフ・予定の時間は自動で集中モード」に1回だけ切りかえたか
     private static let focusAutoMigrationKey = "settings.migrated.focusAutoInsteadOfAutoTimer"

@@ -267,10 +267,18 @@ where user_id = 'ここにuser_idを入れる'
 |---|---|
 | `term_plans` | 期間の計画。タイトル・期間・「そもそも終わる?」の数字カード(`stats`)・「月の流れ」(`phases`) |
 | `weeks` | 1週間ごとの情報。`week_start` は**その週の月曜日**。ラベル・色・行事(`events`)・バッファのメモ |
-| `week_goals` | その週にやること。`target_count` = 箱の数(例: 数学12問なら12、1回だけのことなら1) |
+| `week_goals` | その週にやること。`target_count` = 箱の数(例: 数学12問なら12、1回だけのことなら1)。`box_labels` = 箱ごとの名前(任意。下を参照) |
 
 - 色(`color`)に使える値: `blue` / `yellow` / `red` / `purple` / `green` / `gray`
 - `week_goals.done_boxes`(できた箱の番号)と `done_count`(できた数)は**アプリで押して記録するので、書き込まない**
+- **箱を曜日で出したいときは `box_labels`** に、1つ目の箱から順に名前を入れる(`target_count` と同じ数)。
+  アプリの「週・月」タブで「曜日」にすると、箱に番号の代わりにこの名前が出ます
+  - 例: 演習30分(毎日1回 + 金曜2回)→ `"target_count":8, "box_labels":["月","火","水","木","金","金","土","日"]`
+  - 例: 民法 A論証(平日2個ずつ)→ `"target_count":10, "box_labels":["月","月","火","火","水","水","木","木","金","金"]`
+  - 省略すると番号で出ます。ただし **箱がちょうど7つで `box_labels` が無いときは、アプリが自動で 月〜日** にします
+    (曜日と関係ない7つ〔例: 7問〕のときは、`"box_labels":["1","2","3","4","5","6","7"]` のように番号を入れる)
+  - `box_labels` を使うには、マイグレーション `20261122000000_week_goal_box_labels.sql` の実行が必要です
+    (実行前は、`box_labels` は無視されて保存されません。エラーにはなりません)
 
 ### 期間の計画を入れる(同じ title があれば上書き)
 
@@ -308,7 +316,9 @@ select * from public.replace_week_plan(
   '[
     {"group_name":"学校","title":"数学(B・II)","detail":"木金土日に3問ずつ","target_count":12,"sort_order":10},
     {"group_name":"学校","title":"化学 アルデヒド実験考察(30分)","detail":"11/15(日)22:00締切 → 11/14(土)に","target_count":1,"sort_order":20},
-    {"group_name":"鑑定士","title":"基準Anki 新規600字","detail":"毎日","target_count":4,"sort_order":30}
+    {"group_name":"鑑定士","title":"基準Anki 新規600字","detail":"毎日","target_count":4,"sort_order":30},
+    {"group_name":"鑑定士","title":"演習30分","detail":"毎日1回+金曜は2回","target_count":8,
+     "box_labels":["月","火","水","木","金","金","土","日"],"sort_order":40}
   ]'::jsonb
 );
 ```

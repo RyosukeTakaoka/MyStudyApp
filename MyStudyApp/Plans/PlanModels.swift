@@ -63,6 +63,8 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
     /// できた箱の番号(1から)
     var doneBoxes: [Int]
     var sortOrder: Int
+    /// 箱ごとの名前(例 ["月","火","水","木","金","金","土","日"])。無ければ空
+    var boxLabels: [String] = []
 
     /// できた数
     var doneCount: Int { doneBoxes.count }
@@ -74,6 +76,42 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
         case targetCount = "target_count"
         case doneBoxes = "done_boxes"
         case sortOrder = "sort_order"
+        case boxLabels = "box_labels"
+    }
+
+    /// 曜日の名前(箱がちょうど7つで名前が無いときに使う)
+    static let weekdayNames = ["月", "火", "水", "木", "金", "土", "日"]
+
+    /// 箱 box(1から)に出す文字。
+    /// weekdays = true のとき: 名前があればその名前、名前が無く箱が7つなら 月〜日、それ以外は番号。
+    /// weekdays = false のとき: いつも番号。箱が1つだけなら「✓」
+    func boxLabel(_ box: Int, weekdays: Bool) -> String {
+        if targetCount == 1 { return "✓" }
+        if weekdays {
+            if box >= 1, box <= boxLabels.count {
+                let label = boxLabels[box - 1].trimmingCharacters(in: .whitespaces)
+                if !label.isEmpty { return label }
+            } else if boxLabels.isEmpty, targetCount == 7, (1...7).contains(box) {
+                return Self.weekdayNames[box - 1]
+            }
+        }
+        return "\(box)"
+    }
+}
+
+extension WeekGoal {
+    /// サーバーや前の版で保存したもの(box_labels が無い)も読めるようにする
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        weekStart = try c.decode(String.self, forKey: .weekStart)
+        groupName = try c.decode(String.self, forKey: .groupName)
+        title = try c.decode(String.self, forKey: .title)
+        detail = try c.decodeIfPresent(String.self, forKey: .detail)
+        targetCount = try c.decode(Int.self, forKey: .targetCount)
+        doneBoxes = try c.decode([Int].self, forKey: .doneBoxes)
+        sortOrder = try c.decode(Int.self, forKey: .sortOrder)
+        boxLabels = try c.decodeIfPresent([String].self, forKey: .boxLabels) ?? []
     }
 }
 

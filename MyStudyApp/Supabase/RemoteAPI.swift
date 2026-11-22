@@ -193,7 +193,8 @@ extension RemoteAPI: PlanBoardAPI {
     func fetchWeekGoals(from: String, to: String) async throws -> [WeekGoal] {
         try await supabase
             .from("week_goals")
-            .select("id, week_start, group_name, title, detail, target_count, done_boxes, sort_order")
+            // 全部の列を読む(箱の名前 box_labels は、SQL を実行する前のサーバーには無いので、名前で指定しない)
+            .select()
             .gte("week_start", value: from)
             .lte("week_start", value: to)
             .execute()
