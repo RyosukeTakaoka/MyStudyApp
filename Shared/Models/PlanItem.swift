@@ -79,6 +79,11 @@ extension PlanItem {
     /// 時間つきの予定か
     var isBlock: Bool { kind == "block" }
 
+    /// 睡眠(sleep_plans から作った行)の印
+    static let sleepSource = "sleep"
+    /// 睡眠の行か(チェック・編集・削除はできない。タイマーは使える)
+    var isSleep: Bool { source == Self.sleepSource }
+
     /// 勉強の予定か(食事・睡眠・移動などは false)。集中モードと自動タイマーは勉強の予定だけで動く
     var isStudy: Bool { StudyKind.isStudy(subject: subject, title: title) }
 

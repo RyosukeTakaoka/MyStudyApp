@@ -5,6 +5,8 @@ import SwiftUI
 // 勉強した時間帯を科目の色で塗り、まん中に日付と合計時間を出します。
 struct DayChartSection: View {
     let dayKey: String
+    /// これが変わったら読み直す(今日の分を、タイマーを止めるたびに描き直すため)
+    var refreshKey: Date? = nil
 
     @State private var timeline = DayTimeline.empty
     @State private var isLoading = true
@@ -64,7 +66,7 @@ struct DayChartSection: View {
                 }
             }
         }
-        .task(id: dayKey) { await load() }
+        .task(id: "\(dayKey)|\(refreshKey?.timeIntervalSince1970 ?? 0)") { await load() }
     }
 
     /// iPhone に残っている記録を先に出し、サーバーの記録(この機能を入れる前の分など)を足す

@@ -42,6 +42,8 @@ struct DayScreen: View {
 
     /// ログインしている人の id(タイマーをサーバーで共有するときに使う)
     private let userId: UUID
+    /// 表示している日の夜の睡眠(ほかの予定と同じように一覧に出す)
+    @State private var daySleeps: [SleepPlan] = []
     /// 上の帯(試験まで○日・次の答練・累計時間)
     @State private var targetBand = TargetBandStore()
     /// タイマーの共有の通信中か / 通信中にもう一度頼まれたか
@@ -115,6 +117,10 @@ struct DayScreen: View {
             // 表示する日が変わったら、その日のカレンダーの予定を読む
             .task(id: "\(store.selectedDate)|\(calendarSyncEnabled)") {
                 loadCalendarEvents()
+            }
+            // 表示する日の睡眠を読む(日が変わったとき・同期が終わったとき)
+            .task(id: "\(store.selectedDate)|\(store.lastSyncSucceededAt?.timeIntervalSince1970 ?? 0)") {
+                await loadDaySleeps()
             }
             .onChange(of: calendarSyncEnabled) { _, enabled in
                 Task {
@@ -303,7 +309,7 @@ struct DayScreen: View {
         if store.isToday && !store.blocks.isEmpty {
             Section {
                 NowNextCard(
-                    items: store.items,
+                    items: store.items + sleepItems,
                     calendarEvents: store.selectedDate == store.today ? calendarEvents : [],
                     runningItemIds: Set(timer.timers.map(\.itemId)),
                     onStartTimer: { startTimer(for: $0, isAuto: false) }
@@ -316,8 +322,29 @@ struct DayScreen: View {
     /// 終わった日(昨日より前)だけ、勉強した時間帯の円グラフを出す(その日が終わるまでは出さない)
     @ViewBuilder
     private var chartSection: some View {
-        if store.selectedDate < store.today {
-            DayChartSection(dayKey: store.selectedDate)
+        if store.selectedDate <= store.today {
+            // 今日の分は、タイマーを止めて同期するたびに描き直す
+            DayChartSection(dayKey: store.selectedDate, refreshKey: store.lastSyncSucceededAt)
+        }
+    }
+
+    /// 表示している日の夜の睡眠を、予定の1行の形にしたもの
+    private var sleepItems: [PlanItem] {
+        daySleeps.filter { $0.night == store.selectedDate }.map { $0.asPlanItem() }
+    }
+
+    /// 予定(時間つき)に睡眠を混ぜて、時刻順に並べたもの
+    private var blocksWithSleep: [PlanItem] {
+        (store.blocks + sleepItems).sorted {
+            ($0.startMinutes ?? 0, $0.sortOrder) < ($1.startMinutes ?? 0, $1.sortOrder)
+        }
+    }
+
+    /// 表示している日の睡眠を読む(読めなければ、端末に取っておいた分)
+    private func loadDaySleeps() async {
+        let night = store.selectedDate
+        if let sleeps = await loadSleeps(fromNight: night, toNight: night) {
+            daySleeps = sleeps
         }
     }
 
@@ -852,7 +879,7 @@ struct DayScreen: View {
                     Spacer()
                 }
             }
-        } else if store.items.isEmpty && !store.hasPulledSelectedDate {
+        } else if store.items.isEmpty && sleepItems.isEmpty && !store.hasPulledSelectedDate {
             // 端末にデータが無く、サーバーからも読めていない(オフラインなど)
             Section {
                 ContentUnavailableView(
@@ -861,7 +888,7 @@ struct DayScreen: View {
                     description: Text("電波がつながると、この日の予定を読みこみます。")
                 )
             }
-        } else if store.items.isEmpty {
+        } else if store.items.isEmpty && sleepItems.isEmpty {
             Section {
                 ContentUnavailableView(
                     "予定がありません",
@@ -870,9 +897,10 @@ struct DayScreen: View {
                 )
             }
         } else {
-            if !store.blocks.isEmpty {
+            let blocks = blocksWithSleep
+            if !blocks.isEmpty {
                 Section("予定") {
-                    ForEach(store.blocks) { item in
+                    ForEach(blocks) { item in
                         itemRow(item)
                     }
                 }
@@ -896,6 +924,8 @@ struct DayScreen: View {
         )
         // 左へスワイプすると出るボタン
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // 睡眠の行は、ここでは直せない(Claude が sleep_plans で決める)
+            if !item.isSleep {
             if store.canDelete(item) {
                 Button("削除", systemImage: "trash", role: .destructive) {
                     store.deleteItem(item)
@@ -909,6 +939,7 @@ struct DayScreen: View {
                 editingItem = item
             }
             .tint(.blue)
+            }
         }
     }
 
@@ -924,6 +955,8 @@ struct DayScreen: View {
     }
 
     private func toggle(_ item: PlanItem) {
+        // 睡眠はチェックしない(長押しでタイマーを使って、実際に寝た時間を測る)
+        guard !item.isSleep else { return }
         // タップしたときに「コツッ」と軽く振動させる
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         store.toggle(item)

@@ -75,7 +75,8 @@ extension RemoteAPI {
     func fetchSleeps(fromNight: String, toNight: String) async throws -> [SleepPlan] {
         try await supabase
             .from("sleep_plans")
-            .select("id, night, start_at, end_at, note")
+            // 全部の列を読む(実測 actual_minutes は、SQL を実行する前のサーバーには無いので、名前で指定しない)
+            .select()
             .gte("night", value: fromNight)
             .lte("night", value: toNight)
             .execute()
