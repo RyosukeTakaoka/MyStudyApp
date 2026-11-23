@@ -187,9 +187,52 @@ struct TargetBandData: Codable, Equatable, Sendable {
     /// 累計時間(アプリを使う前の分 + アプリで測った分)
     var totalHours: Double { target.hoursBeforeApp + studyMinutes / 60 }
 
+    /// 月の目盛り: 今日から目標の日まで同じペースで進んだら、各月の始まり(1日)に何時間になっているか。
+    /// 例: 今日 11/23・目標 2027/8/1 → 12月, 1月, …, 8月 の目盛り(8月は目標の時間ちょうど)
+    func monthTicks(today: String) -> [MonthTick] {
+        guard let targetDate = target.targetDate, targetDate > today,
+              let start = DayKey.date(dayKey: today, minutes: 0),
+              let end = DayKey.date(dayKey: targetDate, minutes: 0)
+        else { return [] }
+        let goal = Double(target.totalHoursGoal)
+        let now = totalHours
+        guard goal > now else { return [] }
+        let span = end.timeIntervalSince(start)
+        var ticks: [MonthTick] = []
+        let parts = today.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return [] }
+        var year = parts[0], month = parts[1]
+        while true {
+            month += 1
+            if month > 12 { month = 1; year += 1 }
+            let key = String(format: "%04d-%02d-01", year, month)
+            guard key <= targetDate, let date = DayKey.date(dayKey: key, minutes: 0) else { break }
+            let hours = now + (goal - now) * date.timeIntervalSince(start) / span
+            ticks.append(MonthTick(month: month, dayKey: key, hours: hours))
+            if ticks.count > 36 { break }   // 念のため(3年分まで)
+        }
+        return ticks
+    }
+
+    /// 目標の日まで、1か月あたり何時間ずつ必要か
+    func hoursPerMonth(today: String) -> Double? {
+        guard let days = daysLeft(from: today), days > 0 else { return nil }
+        let remaining = Double(target.totalHoursGoal) - totalHours
+        guard remaining > 0 else { return 0 }
+        return remaining / (Double(days) / 30.44)
+    }
+
     /// これからの答練のうち、いちばん近いもの
     static func nextExam(in exams: [ExamResult], today: String) -> ExamResult? {
         exams.filter { $0.isUpcoming && $0.examDate >= today }
             .min { ($0.examDate, $0.startTime ?? "") < ($1.examDate, $1.startTime ?? "") }
     }
+}
+
+/// 累計時間のバーの月の目盛り
+struct MonthTick: Equatable, Identifiable, Sendable {
+    var month: Int          // 12, 1, 2, …
+    var dayKey: String      // その月の1日
+    var hours: Double       // 同じペースなら、その日に何時間になっているか
+    var id: String { dayKey }
 }

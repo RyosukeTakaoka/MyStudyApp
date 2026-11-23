@@ -78,11 +78,67 @@ struct TargetBandSection: View {
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
-                    ProgressView(value: min(data.totalHours, goal), total: max(goal, 1))
-                        .tint(.green)
+                    HoursBar(total: data.totalHours, goal: goal, ticks: data.monthTicks(today: today))
+                    if let perMonth = data.hoursPerMonth(today: today), perMonth > 0, let date = data.target.targetDate {
+                        Text("\(DayKey.shortText(date))まで 月あたり 約\(Int(perMonth.rounded()))時間(目盛りは、同じペースで進んだときの各月の始まりの位置)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(.vertical, 2)
         }
+    }
+}
+
+/// 累計時間のバー。月の始まりごとに目盛り(同じペースで進んだら、その月の始まりにここまで来ている位置)を入れる
+private struct HoursBar: View {
+    let total: Double
+    let goal: Double
+    let ticks: [MonthTick]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.18))
+                    Capsule().fill(Color.green)
+                        .frame(width: width * fraction(total))
+                    ForEach(ticks) { tick in
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.55))
+                            .frame(width: 1.5, height: 12)
+                            .offset(x: width * fraction(tick.hours) - 0.75)
+                    }
+                }
+                .frame(height: 8)
+                .frame(maxHeight: .infinity)
+            }
+            .frame(height: 12)
+            // 目盛りの下に月(重なりすぎないよう、せまいときは1つおき)
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let step = ticks.count > 1 && width / CGFloat(ticks.count) < 22 ? 2 : 1
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(ticks.enumerated()), id: \.element.id) { index, tick in
+                        if index % step == 0 || index == ticks.count - 1 {
+                            Text("\(tick.month)月")
+                                .font(.system(size: 9).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .fixedSize()
+                                .position(x: min(max(width * fraction(tick.hours), 10), width - 10), y: 6)
+                        }
+                    }
+                }
+            }
+            .frame(height: ticks.isEmpty ? 0 : 12)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("累計 \(Int(total))時間 / \(Int(goal))時間")
+    }
+
+    private func fraction(_ hours: Double) -> CGFloat {
+        CGFloat(min(max(hours / max(goal, 1), 0), 1))
     }
 }
