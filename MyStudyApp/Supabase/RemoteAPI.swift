@@ -22,7 +22,8 @@ struct RemoteAPI: Sendable {
     func fetchDays(from: String, to: String) async throws -> [DayInfo] {
         try await supabase
             .from("days")
-            .select("date, goal, reflection")
+            // 全部の列を読む(目標時間・Claude より は、SQL を実行する前のサーバーには無いので、名前で指定しない)
+            .select()
             .gte("date", value: from)
             .lte("date", value: to)
             .execute()
@@ -30,11 +31,11 @@ struct RemoteAPI: Sendable {
     }
 
     /// チェック(done / done_at)と勉強時間の実績(actual_minutes)を保存する
-    func updateProgress(id: UUID, done: Bool, doneAt: Date?, actualMinutes: Int?) async throws {
+    func updateProgress(id: UUID, done: Bool, doneAt: Date?, actualMinutes: Int?, actualOverride: Int?) async throws {
         try await supabase
             .from("items")
             .update(
-                ProgressUpdate(done: done, doneAt: done ? doneAt : nil, actualMinutes: actualMinutes),
+                ProgressUpdate(done: done, doneAt: done ? doneAt : nil, actualMinutes: actualMinutes, actualOverride: actualOverride),
                 returning: .minimal
             )
             .eq("id", value: id)        // where id = ...
@@ -91,6 +92,55 @@ extension RemoteAPI {
     }
 }
 
+// MARK: - 答練・長期の目標
+
+extension RemoteAPI {
+    /// 答練(模試)を全部読む
+    func fetchExams() async throws -> [ExamResult] {
+        try await supabase
+            .from("exam_results")
+            .select()
+            .order("exam_date", ascending: true)
+            .execute()
+            .value
+    }
+
+    /// 答練を入れる・書きかえる(同じ id があれば上書き)
+    func saveExam(_ exam: ExamResult) async throws {
+        try await supabase
+            .from("exam_results")
+            .upsert(exam, onConflict: "id", returning: .minimal)
+            .execute()
+    }
+
+    func deleteExam(id: UUID) async throws {
+        try await supabase
+            .from("exam_results")
+            .delete(returning: .minimal)
+            .eq("id", value: id)
+            .execute()
+    }
+
+    /// 長期の目標(無ければ nil)
+    func fetchStudyTarget() async throws -> StudyTarget? {
+        let rows: [StudyTarget] = try await supabase
+            .from("study_targets")
+            .select()
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
+    /// アプリで測った勉強時間の合計(分。生活の時間はのぞく)
+    func studyTotalMinutes() async throws -> Double {
+        try await supabase
+            .rpc("study_total_minutes")
+            .execute()
+            .value
+    }
+}
+
 // MARK: - アプリでの予定の編集
 
 extension RemoteAPI {
@@ -123,6 +173,7 @@ private struct ItemUpsertRow: Encodable {
         case sortOrder = "sort_order"
         case doneAt = "done_at"
         case actualMinutes = "actual_minutes"
+        case actualOverride = "actual_override"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -139,6 +190,7 @@ private struct ItemUpsertRow: Encodable {
         try c.encode(item.done, forKey: .done)
         try c.encode(item.doneAt?.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)), forKey: .doneAt)
         try c.encode(item.actualMinutes, forKey: .actualMinutes)
+        try c.encode(item.actualOverride, forKey: .actualOverride)
         try c.encode(item.note, forKey: .note)
         try c.encode(item.steps, forKey: .steps)
         try c.encode(item.cautions, forKey: .cautions)
@@ -210,6 +262,15 @@ extension RemoteAPI: PlanBoardAPI {
             .execute()
     }
 
+    /// 問題番号の始まりを保存する(nil で消す)
+    func updateGoalStart(id: UUID, start: Int?) async throws {
+        try await supabase
+            .from("week_goals")
+            .update(GoalStartUpdate(boxStart: start), returning: .minimal)
+            .eq("id", value: id)
+            .execute()
+    }
+
     /// 箱の名前(曜日など)を保存する
     func updateGoalLabels(id: UUID, labels: [String]) async throws {
         try await supabase
@@ -217,6 +278,16 @@ extension RemoteAPI: PlanBoardAPI {
             .update(["box_labels": labels], returning: .minimal)
             .eq("id", value: id)
             .execute()
+    }
+}
+
+/// 問題番号の始まりを送る形(nil も null として送る)
+private struct GoalStartUpdate: Encodable {
+    let boxStart: Int?
+    enum CodingKeys: String, CodingKey { case boxStart = "box_start" }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(boxStart, forKey: .boxStart)
     }
 }
 
@@ -238,11 +309,14 @@ private struct ProgressUpdate: Encodable {
     let done: Bool
     let doneAt: Date?
     let actualMinutes: Int?
+    /// 手で直した実績(null で「タイマーの記録に戻す」)
+    let actualOverride: Int?
 
     enum CodingKeys: String, CodingKey {
         case done
         case doneAt = "done_at"
         case actualMinutes = "actual_minutes"
+        case actualOverride = "actual_override"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -254,5 +328,6 @@ private struct ProgressUpdate: Encodable {
         let text = doneAt?.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         try container.encode(text, forKey: .doneAt)
         try container.encode(actualMinutes, forKey: .actualMinutes)
+        try container.encode(actualOverride, forKey: .actualOverride)
     }
 }

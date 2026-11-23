@@ -8,6 +8,7 @@ protocol PlanBoardAPI: Sendable {
     func fetchWeekGoals(from: String, to: String) async throws -> [WeekGoal]
     func updateGoalBoxes(id: UUID, doneBoxes: [Int]) async throws
     func updateGoalLabels(id: UUID, labels: [String]) async throws
+    func updateGoalStart(id: UUID, start: Int?) async throws
 }
 
 /// 端末に保存しておく中身(電波がなくても見られるように)
@@ -19,6 +20,8 @@ struct PlanBoardCache: Codable, Equatable {
     var pending: [UUID: [Int]] = [:]
     /// まだ送っていない「箱の名前」(前の版の保存データには無いので、無くても読めるように nil 可)
     var pendingLabels: [UUID: [String]]? = nil
+    /// まだ送っていない「問題番号の始まり」(0 = 消す)
+    var pendingStarts: [UUID: Int]? = nil
 }
 
 // 「週・月」タブのデータを持つ場所。
@@ -91,7 +94,7 @@ final class PlanBoardStore {
     /// 今の週(画面を開いたとき、ここまでスクロールする)
     var currentWeekStart: String { DayKey.mondayOfWeek(DayKey.today(now: now())) }
 
-    var pendingCount: Int { cache.pending.count + (cache.pendingLabels?.count ?? 0) }
+    var pendingCount: Int { cache.pending.count + (cache.pendingLabels?.count ?? 0) + (cache.pendingStarts?.count ?? 0) }
 
     // MARK: - 操作
 
@@ -119,6 +122,18 @@ final class PlanBoardStore {
         var labels = cache.pendingLabels ?? [:]
         labels[goal.id] = next
         cache.pendingLabels = labels
+        save()
+        rebuild()
+        Task { await sync() }
+    }
+
+    /// 問題番号の始まりを決める(例 176)。nil なら 1 から
+    func setBoxStart(of goal: WeekGoal, to start: Int?) {
+        guard let index = cache.goals.firstIndex(where: { $0.id == goal.id }) else { return }
+        cache.goals[index].boxStart = start
+        var starts = cache.pendingStarts ?? [:]
+        starts[goal.id] = start ?? 0
+        cache.pendingStarts = starts
         save()
         rebuild()
         Task { await sync() }
@@ -163,6 +178,17 @@ final class PlanBoardStore {
             }
         }
 
+        for (id, start) in cache.pendingStarts ?? [:] {
+            do {
+                try await api.updateGoalStart(id: id, start: start > 0 ? start : nil)
+                if cache.pendingStarts?[id] == start { cache.pendingStarts?[id] = nil }
+            } catch {
+                problem = Self.describe(error)
+                save()
+                return
+            }
+        }
+
         // 2. 受け取る(先週から8週間先まで)
         let today = DayKey.today(now: now())
         let from = DayKey.adding(-7, to: DayKey.mondayOfWeek(today))
@@ -179,12 +205,14 @@ final class PlanBoardStore {
                 var goal = goal
                 if let mine = cache.pending[goal.id] { goal.doneBoxes = mine.filter { $0 <= goal.targetCount } }
                 if let mine = cache.pendingLabels?[goal.id] { goal.boxLabels = mine }   // 未送信の名前も端末側を優先
+                if let mine = cache.pendingStarts?[goal.id] { goal.boxStart = mine > 0 ? mine : nil }
                 return goal
             }
             // サーバーから消えたやることの未送信分は捨てる
             let ids = Set(newGoals.map(\.id))
             cache.pending = cache.pending.filter { ids.contains($0.key) }
             cache.pendingLabels = cache.pendingLabels?.filter { ids.contains($0.key) }
+            cache.pendingStarts = cache.pendingStarts?.filter { ids.contains($0.key) }
             problem = nil
             hasLoadedOnce = true
         } catch {

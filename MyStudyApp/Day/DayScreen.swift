@@ -42,6 +42,8 @@ struct DayScreen: View {
 
     /// ログインしている人の id(タイマーをサーバーで共有するときに使う)
     private let userId: UUID
+    /// 上の帯(試験まで○日・次の答練・累計時間)
+    @State private var targetBand = TargetBandStore()
     /// タイマーの共有の通信中か / 通信中にもう一度頼まれたか
     @State private var isSyncingTimers = false
     @State private var timerSyncAgain = false
@@ -104,6 +106,7 @@ struct DayScreen: View {
             }
             // 同期が終わるたびに、通知を予約しなおす(Claude が予定を変えても通知が合うように)
             .task(id: store.lastSyncSucceededAt) {
+                await targetBand.refresh(today: store.today)
                 await rescheduleReminders()
                 rescheduleFocus()
                 exportToCalendar()
@@ -149,7 +152,14 @@ struct DayScreen: View {
             // 予定を直す画面
             .sheet(item: $editingItem) { item in
                 ItemEditorSheet(original: item, date: item.date) { draft in
-                    store.updateItem(draft.applied(to: item))
+                    // 題名・時刻などが変わったときだけ「直した予定」にする(実績だけ直したときは、そのまま)
+                    let edited = draft.applied(to: item)
+                    if edited != item {
+                        store.updateItem(edited)
+                    }
+                    if draft.actualOverrideValue != item.actualOverride {
+                        store.setActualOverride(itemId: item.id, minutes: draft.actualOverrideValue)
+                    }
                 }
             }
             .onChange(of: remindersEnabled) { _, enabled in
@@ -243,6 +253,7 @@ struct DayScreen: View {
             GeometryReader { geometry in
                 HStack(spacing: 0) {
                     List {
+                        targetBandSection
                         syncStatusSection
                         focusSection
                         timerSection
@@ -263,6 +274,7 @@ struct DayScreen: View {
             }
         } else {
             List {
+                targetBandSection
                 syncStatusSection
                 focusSection
                 timerSection
@@ -274,6 +286,14 @@ struct DayScreen: View {
                 itemSections
                 reflectionSection
             }
+        }
+    }
+
+    /// いちばん上の帯(今日を表示しているときだけ)
+    @ViewBuilder
+    private var targetBandSection: some View {
+        if store.isToday, let data = targetBand.data {
+            TargetBandSection(data: data, today: store.today)
         }
     }
 
@@ -782,6 +802,17 @@ struct DayScreen: View {
                 Text(goal)
                     .font(.headline)
             }
+        }
+        // Claude からのひとこと(前日の反省への返事・その日の注意点など)
+        if let note = store.day?.coachNote, !note.isEmpty {
+            Section {
+                Text(note)
+                    .font(.subheadline)
+                    .textSelection(.enabled)
+            } header: {
+                Label("Claude より", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            .listRowBackground(Color.orange.opacity(0.10))
         }
     }
 

@@ -10,6 +10,8 @@ struct ItemDraft: Equatable {
     var start: Date
     var hasEnd = true
     var end: Date
+    /// 手で直した実績(分)の入力欄。空ならタイマーの記録のまま
+    var actualText = ""
 
     static let standardSubjects = ["鑑定理論", "行政法規", "民法", "経済", "会計", "学校", "その他", "生活"]
 
@@ -38,6 +40,14 @@ struct ItemDraft: Equatable {
         start = DayKey.date(dayKey: item.date, minutes: startMinutes) ?? Date()
         hasEnd = item.endMinutes != nil || !item.isBlock
         end = DayKey.date(dayKey: item.date, minutes: TimeOfDay.minutes(from: item.endTime) ?? min(startMinutes + 60, 23 * 60 + 59)) ?? Date()
+        actualText = item.actualOverride.map(String.init) ?? ""
+    }
+
+    /// 手で直した実績(分)。空・読めないときは nil(タイマーの記録のまま)
+    var actualOverrideValue: Int? {
+        let text = actualText.trimmingCharacters(in: .whitespaces)
+        guard let minutes = Int(text), minutes >= 0 else { return nil }
+        return min(minutes, 24 * 60)
     }
 
     var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -45,6 +55,8 @@ struct ItemDraft: Equatable {
     /// 保存できない理由(問題なければ nil)
     var problem: String? {
         if trimmedTitle.isEmpty { return "題名を入れてください。" }
+        let actual = actualText.trimmingCharacters(in: .whitespaces)
+        if !actual.isEmpty && actualOverrideValue == nil { return "実績は 0 以上の数(分)で入れてください。" }
         if isBlock && hasEnd && DayKey.minutesOfDay(end) <= DayKey.minutesOfDay(start) {
             return "終了は開始より後の時刻にしてください。"
         }

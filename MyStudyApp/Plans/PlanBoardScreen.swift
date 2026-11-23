@@ -27,6 +27,13 @@ struct PlanBoardScreen: View {
                 ScrollView {
                     // 週は多くても10枚ほどなので、ふつうの VStack で十分(「今週」へのスクロールも確実になる)
                     VStack(alignment: .leading, spacing: 16) {
+                        // 箱に曜日を出すか、番号を出すか(iPhone でも出るように、上のバーではなくここに置く)
+                        Picker("箱の表示", selection: $showsWeekdays) {
+                            Text("曜日").tag(true)
+                            Text("番号").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 260)
                         if let problem = store.problem {
                             Label(problem, systemImage: "exclamationmark.triangle")
                                 .font(.footnote)
@@ -61,6 +68,9 @@ struct PlanBoardScreen: View {
                                     },
                                     onLabelBox: { box, goal, label in
                                         store.setBoxLabel(box, of: goal, to: label)
+                                    },
+                                    onSetStart: { goal, start in
+                                        store.setBoxStart(of: goal, to: start)
                                     }
                                 )
                                 .id(section.id)
@@ -76,15 +86,6 @@ struct PlanBoardScreen: View {
                 .navigationTitle("週・月の計画")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    // 箱に曜日を出すか、番号を出すか
-                    ToolbarItem(placement: .topBarLeading) {
-                        Picker("箱の表示", selection: $showsWeekdays) {
-                            Text("曜日").tag(true)
-                            Text("番号").tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                        .fixedSize()
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("今週") {
                             withAnimation { proxy.scrollTo(store.currentWeekStart, anchor: .top) }
@@ -92,6 +93,8 @@ struct PlanBoardScreen: View {
                     }
                 }
                 .refreshable { await store.sync() }
+                // タブを切りかえて戻ってきたときも読み直す(「今日」でチェックして埋まった箱を出すため)
+                .onAppear { Task { await store.sync() } }
                 .task {
                     await store.sync()
                     proxy.scrollTo(store.currentWeekStart, anchor: .top)
@@ -193,6 +196,10 @@ private struct WeekCard: View {
     let onTapBox: (Int, WeekGoal) -> Void
     /// 箱を長押しして名前(曜日)を選んだとき(nil = 名前を消す)
     let onLabelBox: (Int, WeekGoal, String?) -> Void
+    /// 問題番号の始まりを決めたとき(nil = 1 から)
+    let onSetStart: (WeekGoal, Int?) -> Void
+    /// 「予定と実績」の画面を出しているか
+    @State private var showsPlanActual = false
 
     var body: some View {
         let color = PlanColor.color(section.week.color)
@@ -223,10 +230,22 @@ private struct WeekCard: View {
                         .foregroundStyle(.secondary)
                         .padding(.leading, 8)
                 }
-                if isCurrent {
-                    Label("今週", systemImage: "star.fill")
-                        .font(.caption.bold())
-                        .foregroundStyle(color)
+                HStack {
+                    if isCurrent {
+                        Label("今週", systemImage: "star.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(color)
+                    }
+                    Spacer()
+                    // 日ごと・科目ごとの「予定○分 / 実績○分」
+                    Button {
+                        showsPlanActual = true
+                    } label: {
+                        Label("予定と実績", systemImage: "chart.bar.xaxis")
+                            .font(.caption.bold())
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
 
                 // その週の行事
@@ -252,7 +271,8 @@ private struct WeekCard: View {
                             .foregroundStyle(.secondary)
                         ForEach(group.goals) { goal in
                             GoalRow(goal: goal, onTap: { box in onTapBox(box, goal) },
-                                    onLabel: { box, label in onLabelBox(box, goal, label) })
+                                    onLabel: { box, label in onLabelBox(box, goal, label) },
+                                    onSetStart: { start in onSetStart(goal, start) })
                             if goal.id != group.goals.last?.id {
                                 Divider()
                             }
@@ -271,6 +291,9 @@ private struct WeekCard: View {
                 }
             }
         }
+        .sheet(isPresented: $showsPlanActual) {
+            PlanActualView(weekStart: section.week.weekStart)
+        }
     }
 }
 
@@ -280,6 +303,10 @@ private struct GoalRow: View {
     let onTap: (Int) -> Void
     /// 長押しで名前を選んだとき(nil = 名前を消す)
     let onLabel: (Int, String?) -> Void
+    /// 問題番号の始まりを決めたとき(nil = 1 から)
+    let onSetStart: (Int?) -> Void
+    @State private var asksStart = false
+    @State private var startText = ""
     /// 箱に曜日(名前)を出すか。オフなら番号
     @AppStorage(AppSettings.boxWeekdaysKey) private var showsWeekdays = true
 
@@ -327,14 +354,32 @@ private struct GoalRow: View {
                                 Button(day) { onLabel(box, day) }
                             }
                             Divider()
-                            Button("番号(\(box))", systemImage: "number") { onLabel(box, "\(box)") }
+                            Button("番号(\(goal.boxNumber(box)))", systemImage: "number") { onLabel(box, "\(goal.boxNumber(box))") }
                             Button("名前を消す", systemImage: "xmark", role: .destructive) { onLabel(box, nil) }
+                            Divider()
+                            Button("問題番号の始まり…", systemImage: "list.number") {
+                                startText = goal.boxStart.map(String.init) ?? ""
+                                asksStart = true
+                            }
                         }
                     }
                     .accessibilityLabel("\(goal.title) \(goal.boxLabel(box, weekdays: showsWeekdays))")
                     .accessibilityValue(done ? "できた" : "まだ")
                 }
             }
+        }
+        // 問題番号の始まり(例 数学 176〜181 → 176)を入れる
+        .alert("問題番号の始まり", isPresented: $asksStart) {
+            TextField("例: 176", text: $startText)
+                .keyboardType(.numberPad)
+            Button("決める") {
+                let value = Int(startText.trimmingCharacters(in: .whitespaces))
+                onSetStart(value.flatMap { $0 > 0 ? $0 : nil })
+            }
+            Button("1 からに戻す", role: .destructive) { onSetStart(nil) }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("「\(goal.title)」の1つ目の箱の番号です。番号で表示するとき、ここから数えます。")
         }
     }
 }

@@ -65,6 +65,8 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
     var sortOrder: Int
     /// 箱ごとの名前(例 ["月","火","水","木","金","金","土","日"])。無ければ空
     var boxLabels: [String] = []
+    /// 1つ目の箱の番号(例 数学 176〜181 なら 176)。nil なら 1 から
+    var boxStart: Int? = nil
 
     /// できた数
     var doneCount: Int { doneBoxes.count }
@@ -77,6 +79,7 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
         case doneBoxes = "done_boxes"
         case sortOrder = "sort_order"
         case boxLabels = "box_labels"
+        case boxStart = "box_start"
     }
 
     /// 曜日の名前(箱がちょうど7つで名前が無いときに使う)
@@ -92,11 +95,16 @@ struct WeekGoal: Codable, Equatable, Identifiable, Sendable {
                 let label = boxLabels[box - 1].trimmingCharacters(in: .whitespaces)
                 if !label.isEmpty { return label }
             }
-            if targetCount == 7, (1...7).contains(box) {
+            if targetCount == 7, boxStart == nil, (1...7).contains(box) {
                 return Self.weekdayNames[box - 1]
             }
         }
-        return "\(box)"
+        return "\(boxNumber(box))"
+    }
+
+    /// 箱 box(1から)の番号。問題番号の始まりがあれば、そこから数える(例 176, 177, …)
+    func boxNumber(_ box: Int) -> Int {
+        (boxStart ?? 1) + box - 1
     }
 
     /// 箱 box の名前を label にしたあとの、名前の一覧(nil なら名前を消す = 自動の表示に戻す)。
@@ -124,6 +132,7 @@ extension WeekGoal {
         doneBoxes = try c.decode([Int].self, forKey: .doneBoxes)
         sortOrder = try c.decode(Int.self, forKey: .sortOrder)
         boxLabels = try c.decodeIfPresent([String].self, forKey: .boxLabels) ?? []
+        boxStart = try? c.decodeIfPresent(Int.self, forKey: .boxStart)
     }
 }
 

@@ -66,7 +66,8 @@ struct ItemRow: View {
                         .foregroundStyle(.secondary)
                 }
                 if let minutes = item.actualMinutes, minutes > 0 {
-                    Label("実績 \(NowNext.durationText(minutes))", systemImage: "timer")
+                    Label("実績 \(NowNext.durationText(minutes))" + (item.actualOverride != nil ? "(手直し)" : ""),
+                          systemImage: item.actualOverride != nil ? "pencil" : "timer")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

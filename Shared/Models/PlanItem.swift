@@ -20,6 +20,8 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
     var steps: [String] = []
     /// 注意(箇条書きで表示する)
     var cautions: [String] = []
+    /// 手で直した実績(分)。入っていれば、タイマーの記録より優先する(nil = タイマーの記録のまま)
+    var actualOverride: Int? = nil
 
     // Swift 側の名前(startTime)と、データベース側の列名(start_time)の対応表
     enum CodingKeys: String, CodingKey {
@@ -29,6 +31,7 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
         case sortOrder = "sort_order"
         case doneAt = "done_at"
         case actualMinutes = "actual_minutes"
+        case actualOverride = "actual_override"
     }
 }
 
@@ -54,6 +57,7 @@ extension PlanItem {
         // 手順と注意は、無い・読めないときは空にする(古いデータでも表示できるように)
         steps = (try? c.decodeIfPresent([String].self, forKey: .steps)) ?? []
         cautions = (try? c.decodeIfPresent([String].self, forKey: .cautions)) ?? []
+        actualOverride = try? c.decodeIfPresent(Int.self, forKey: .actualOverride)
     }
 
     /// 手順か注意があるか

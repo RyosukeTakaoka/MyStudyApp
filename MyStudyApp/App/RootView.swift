@@ -19,6 +19,8 @@ struct RootView: View {
                         ScreenTimeController.resetAll()
                         PlanBoardStore.clearSaved()
                         SleepCache.clearSaved()
+                        ExamStore.clearSaved()
+                        TargetBandStore.clearSaved()
                         WeekWidgetStore.write(.empty)
                         _ = TimerWidgetActions.takeEvents()
                         SessionQueue.clearSaved()

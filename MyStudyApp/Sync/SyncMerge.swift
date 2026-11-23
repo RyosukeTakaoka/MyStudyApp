@@ -60,7 +60,8 @@ enum SyncMerge {
             if let serverDay = serverByDate[date] {
                 if let mine, mine.reflectionNeedsSync {
                     // 未送信のふりかえりがある日: 目標はサーバーに合わせ、ふりかえりは端末側を残す
-                    let merged = DayInfo(date: date, goal: serverDay.goal, reflection: mine.info.reflection)
+                    var merged = serverDay                 // 目標・Claude より・目標時間はサーバーの値
+                    merged.reflection = mine.info.reflection  // まだ送っていないふりかえりは端末の値
                     changes.save.append(LocalDay(info: merged, reflectionNeedsSync: true))
                 } else {
                     changes.save.append(LocalDay(info: serverDay, reflectionNeedsSync: false))

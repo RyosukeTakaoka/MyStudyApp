@@ -52,6 +52,28 @@ struct ItemEditorSheet: View {
                     }
                 }
 
+                // 実績の手直し(タイマーの押し忘れなど)。直すときだけ出す
+                if let original {
+                    Section {
+                        HStack {
+                            Text("実際にかかった時間")
+                            Spacer()
+                            TextField("タイマーの記録", text: $draft.actualText)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: 120)
+                            Text("分")
+                        }
+                        if !draft.actualText.isEmpty {
+                            Button("タイマーの記録に戻す") { draft.actualText = "" }
+                        }
+                    } header: {
+                        Text("実績")
+                    } footer: {
+                        Text(actualFooter(original))
+                    }
+                }
+
                 if let original, original.source == "claude" {
                     Section {
                         Text("Claude が入れた予定を直すと「自分で入れた予定」になり、Claude が予定を入れ直しても消えなくなります。")
@@ -85,5 +107,15 @@ struct ItemEditorSheet: View {
                 }
             }
         }
+    }
+
+    /// 実績の欄の説明
+    private func actualFooter(_ item: PlanItem) -> String {
+        let recorded = item.actualOverride == nil ? (item.actualMinutes ?? 0) : nil
+        var text = "タイマーを押し忘れたときなどに、実際にかかった時間を入れると、こちらが実績になります(空ならタイマーの記録)。"
+        if let recorded {
+            text += "\n今のタイマーの記録: \(recorded)分"
+        }
+        return text
     }
 }

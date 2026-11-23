@@ -18,6 +18,10 @@
 | 期間の計画(そもそも終わる?・月の流れ) | `term_plans`(`replace_term_plan` 関数) | 「週・月」タブのいちばん上 | 6 |
 | 予定ではない読み物(ルール・方針・振り返り) | `notes`(`upsert_note` 関数) | 「資料」タブ | 8 |
 | 睡眠(寝る時刻・起きる時刻) | `sleep_plans`(`upsert_sleep` 関数) | **アプリには出ない**。iPhone の「MyStudy」カレンダーに「睡眠」として出る | 10 |
+| 1日の勉強の目標時間・Claude からのひとこと | `days.target_minutes` / `days.coach_note` | 「今日」タブの目標の下に「Claude より」、「予定と実績」の表の目標 | 11 |
+| 長期の目標(試験の日・3000時間) | `study_targets` | 「今日」タブのいちばん上の帯 | 11 |
+| 答練の予定・成績・振り返り | `exam_results` | 「答練」タブ(点数の推移のグラフ)、次の答練は「今日」の帯 | 11 |
+| 予定と週のやることのつながり | `replace_plan` の `"goal"` → `items.week_goal_title` | 予定をチェックすると、その週の箱が1つ埋まる | 11 |
 | 読むだけ: チェック・実績・ふりかえり | `items.done` / `actual_minutes` / `study_sessions` / `days.reflection` | — | 7 |
 
 ### ユーザーがアプリでできること(計画を立てるときの前提)
@@ -73,7 +77,9 @@
 | `source` | text | `'claude'` = Claude が入れた / `'app'` = ユーザーがアプリで入れた・直した(9章)。省略すると `'claude'` | **省略する**(`'claude'` になる) |
 | `done` | boolean | チェック済みか(ユーザーがアプリで付ける) | **触らない** |
 | `done_at` | timestamptz | チェックした日時(自動) | **触らない** |
-| `actual_minutes` | integer | 実際にかかった分数(アプリのタイマーが記録する) | **触らない** |
+| `actual_minutes` | integer | 実際にかかった分数(タイマーの区間からサーバーが計算する。手で直した値があればそれ) | **触らない** |
+| `actual_override` | integer | ユーザーがアプリで手で直した実績(タイマーの押し忘れなど)。入っていれば `actual_minutes` はこの値 | **触らない** |
+| `week_goal_title` | text | つながっている週のやることの題名(`replace_plan` の `"goal"` で入れる。11章) | 関数で入れる |
 | `note` | text | メモ。予定の補足を書いてもよい(例「15分(解く10分+答え合わせ5分)」) | 任意 |
 | `steps` | jsonb | **手順**。文字の配列(例 `["10分タイマーで解く", "答え合わせ"]`)。アプリで「手順と注意」を開くと番号つきで出る | 任意 |
 | `cautions` | jsonb | **注意**。文字の配列。アプリで箇条書きで出る | 任意 |
@@ -564,3 +570,87 @@ order by night;
 |---|---|---|
 | `function public.upsert_sleep(...) does not exist` | マイグレーション `20261118000000_sleep_plans.sql` がまだ実行されていない | ユーザーに SQL Editor で実行してもらう |
 | `violates check constraint "sleep_plans_length"` | 寝る〜起きるが16時間より長い | 時刻(とくに午前・午後)を見直す |
+
+---
+
+## 11. 目標時間・Claude より・長期の目標・答練・週のやることとのつながり
+
+(マイグレーション `20261123000000_plan_actual_exams.sql` を実行したあとから使えます)
+
+### 1日の目標時間と「Claude より」(`days`)
+
+| 列 | 中身 |
+|---|---|
+| `target_minutes` | その日の勉強の目標時間(分)。省略すると **平日240分・土日480分**。祝日や行事の日は入れてください(例 祝日 480) |
+| `coach_note` | **Claude からのひとこと**。前日のふりかえりへの返事、その日の作戦・注意点を2〜3行で。アプリの目標の下に「Claude より」として出ます |
+
+```sql
+insert into days (user_id, date, target_minutes, coach_note)
+values ('<user_id>', '2026-11-24', 240, '昨日は数学が30分押したので、今日は50分に延ばします。')
+on conflict (user_id, date) do update set target_minutes = excluded.target_minutes, coach_note = excluded.coach_note;
+```
+
+- `reflection`(ユーザーのふりかえり)は上書きしないこと(上の SQL は `reflection` にふれません)
+- 翌日の予定を入れるときに、ふりかえり(`days.reflection`)を読んでから `coach_note` を書くと、アプリを開いたときに返事が見えます
+
+### 長期の目標(`study_targets`、1人1行)
+
+「今日」タブのいちばん上の帯に「論文式試験まで ○日」「累計 ○時間 / 3000時間」と出ます。
+累計 = `hours_before_app`(アプリを使う前に勉強した時間)+ アプリのタイマーの合計(生活の時間をのぞく)。
+
+```sql
+insert into study_targets (user_id, target_name, target_date, total_hours_goal, hours_before_app)
+values ('<user_id>', '論文式試験', '2027-08-01', 3000, 0)
+on conflict (user_id) do update set target_name = excluded.target_name, target_date = excluded.target_date,
+  total_hours_goal = excluded.total_hours_goal, hours_before_app = excluded.hours_before_app;
+```
+
+アプリのタイマーの合計(分)は `select public.study_total_minutes();` で読めます。
+
+### 答練の予定・成績・振り返り(`exam_results`)
+
+| 列 | 中身 |
+|---|---|
+| `exam_date` / `start_time` | 受ける(受けた)日・始まる時刻 |
+| `subject` / `title` | 科目・名前(例 鑑定理論 / 応用答練 第5回)。**日付・科目・名前の組み合わせで1行** |
+| `score` / `full_score` / `average` / `rank` / `examinees` | 点数・満点・平均点・順位・受験者数。**点数が null の答練は「これからの答練」**として扱い、「今日」の帯に次の答練が出ます |
+| `good_points` / `missed_points` / `next_actions` / `note` | 良かった点・論点漏れ(できなかった点)・次にやること・メモ |
+
+```sql
+-- 予定を入れる(まだ点数なし)
+insert into exam_results (user_id, exam_date, start_time, subject, title)
+values ('<user_id>', '2026-12-06', '09:00', '鑑定理論', '応用答練 第5回')
+on conflict (user_id, exam_date, subject, title) do update set start_time = excluded.start_time;
+
+-- 受けたあと: 成績と振り返りを入れる
+update exam_results set score = 64, full_score = 100, average = 52, rank = 2, examinees = 130,
+  good_points = '暗記はできている', missed_points = '耐用年数の論点漏れ', next_actions = '論点の目次を白紙で書く'
+where user_id = '<user_id>' and exam_date = '2026-12-06' and title = '応用答練 第5回';
+
+-- 消す(コネクタから select で呼べる)
+select public.remove_exam_result('<user_id>', '<答練の id>');
+```
+
+- ユーザーもアプリで足したり直したりします(`source = 'app'`)。ユーザーが書いた振り返りは、頼まれない限り上書きしないこと
+- 点数の推移は、満点が入っていれば満点に対する%でグラフにします。満点はなるべく入れてください
+
+### 予定と週のやることをつなぐ(`replace_plan` の `"goal"`)
+
+予定に `"goal": "週のやることの題名"` を付けると、ユーザーがその予定をチェックしたときに、
+**その週(月曜〜日曜)の同じ題名のやることの箱が1つ自動で埋まります**(チェックを外すと1つ戻る)。
+
+```sql
+select * from public.replace_plan('<user_id>', '2026-11-27', null, '[
+  {"kind":"block","start_time":"20:00","end_time":"20:30","title":"演習30分 1回目","subject":"鑑定理論","goal":"演習30分","sort_order":10},
+  {"kind":"block","start_time":"21:00","end_time":"21:30","title":"演習30分 2回目","subject":"鑑定理論","goal":"演習30分","sort_order":20}
+]'::jsonb);
+```
+
+- `"goal"` は、その週の `week_goals.title` と**完全に同じ文字**にする(ちがうと何も起きません)
+- 埋まる箱は「その日の曜日の名前の箱」(例 金曜なら「金」の箱。7つで名前の無い箱は、その曜日の位置)を先に、無ければいちばん小さい番号の空いた箱
+- ユーザーが週の箱を自分で押すこともあるので、つないだやることを「両方押す」必要はなくなります
+
+### 問題番号(`week_goals.box_start`)
+
+数学 176〜181 のような「問題番号」を箱に出したいときは、`replace_week_plan` の各行に `"box_start": 176` を入れます
+(`"target_count": 6` なら 176〜181 と出る)。省略すると前の値が残ります(ユーザーがアプリで決めた値も残る)。

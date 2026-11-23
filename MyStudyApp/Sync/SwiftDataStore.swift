@@ -27,6 +27,8 @@ final class CachedItem {
     /// 手順と注意(あとから足した項目なので、最初の値を決めておく)
     var steps: [String] = []
     var cautions: [String] = []
+    /// 手で直した実績(あとから足した項目)
+    var actualOverride: Int? = nil
     /// まだサーバーに送っていないチェックの変更があるか
     var needsSync: Bool
 
@@ -47,6 +49,7 @@ final class CachedItem {
         self.note = item.note
         self.steps = item.steps
         self.cautions = item.cautions
+        self.actualOverride = item.actualOverride
         self.needsSync = local.needsSync
     }
 
@@ -67,6 +70,7 @@ final class CachedItem {
         note = item.note
         steps = item.steps
         cautions = item.cautions
+        actualOverride = item.actualOverride
         needsSync = local.needsSync
     }
 
@@ -77,7 +81,7 @@ final class CachedItem {
                 id: id, date: date, kind: kind, startTime: startTime, endTime: endTime,
                 title: title, subject: subject, sortOrder: sortOrder, source: source,
                 done: done, doneAt: doneAt, actualMinutes: actualMinutes, note: note,
-                steps: steps, cautions: cautions
+                steps: steps, cautions: cautions, actualOverride: actualOverride
             ),
             needsSync: needsSync
         )
@@ -90,6 +94,9 @@ final class CachedDay {
     var date: String
     var goal: String?
     var reflection: String?
+    /// 目標時間と Claude より(あとから足した項目)
+    var targetMinutes: Int? = nil
+    var coachNote: String? = nil
     /// まだサーバーに送っていないふりかえりがあるか
     var reflectionNeedsSync: Bool
 
@@ -97,18 +104,22 @@ final class CachedDay {
         self.date = local.info.date
         self.goal = local.info.goal
         self.reflection = local.info.reflection
+        self.targetMinutes = local.info.targetMinutes
+        self.coachNote = local.info.coachNote
         self.reflectionNeedsSync = local.reflectionNeedsSync
     }
 
     func update(from local: LocalDay) {
         goal = local.info.goal
         reflection = local.info.reflection
+        targetMinutes = local.info.targetMinutes
+        coachNote = local.info.coachNote
         reflectionNeedsSync = local.reflectionNeedsSync
     }
 
     var asLocal: LocalDay {
         LocalDay(
-            info: DayInfo(date: date, goal: goal, reflection: reflection),
+            info: DayInfo(date: date, goal: goal, reflection: reflection, targetMinutes: targetMinutes, coachNote: coachNote),
             reflectionNeedsSync: reflectionNeedsSync
         )
     }

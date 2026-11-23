@@ -229,8 +229,23 @@ final class DayStore {
         item.done = current.item.done
         item.doneAt = current.item.doneAt
         item.actualMinutes = current.item.actualMinutes
+        item.actualOverride = current.item.actualOverride
         item.source = "app"
         saveEdited(item, needsSync: current.needsSync)
+    }
+
+    /// 実績を手で直す(タイマーの押し忘れなど)。minutes が nil なら「タイマーの記録に戻す」。
+    /// 予定の中身は変えないので、Claude が入れた予定のまま(入れ直しで消えるかどうかも変わらない)
+    func setActualOverride(itemId: UUID, minutes: Int?) {
+        guard var current = local.item(id: itemId), current.item.actualOverride != minutes else { return }
+        current.item.actualOverride = minutes
+        if let minutes {
+            current.item.actualMinutes = minutes
+        }
+        current.needsSync = true
+        local.save(items: [current])
+        reloadFromLocal()
+        requestSync()
     }
 
     /// 終わらなかった予定を明日に回す。明日に同じ内容の予定を作り、元の予定のメモに「→ 11/15(日)へ」と書く
@@ -290,6 +305,11 @@ final class DayStore {
         guard minutes > 0 || (markDone && !current.item.done) else { return }
         if minutes > 0 {
             current.item.actualMinutes = (current.item.actualMinutes ?? 0) + minutes
+            // 手で直した実績があるときは、そこにも足す(直したあとに測った分も数えるため)
+            if let override = current.item.actualOverride {
+                current.item.actualOverride = override + minutes
+                current.item.actualMinutes = override + minutes
+            }
         }
         if markDone && !current.item.done {
             current.item.done = true
@@ -426,7 +446,8 @@ final class DayStore {
                 id: pending.item.id,
                 done: pending.item.done,
                 doneAt: pending.item.doneAt,
-                actualMinutes: pending.item.actualMinutes
+                actualMinutes: pending.item.actualMinutes,
+                actualOverride: pending.item.actualOverride
             )
             guard !isStopped else { return }
             // 送っているあいだに、もう一度タップされていないときだけ「送信済み」にする
@@ -434,7 +455,8 @@ final class DayStore {
                latest.needsSync,
                latest.item.done == pending.item.done,
                latest.item.doneAt == pending.item.doneAt,
-               latest.item.actualMinutes == pending.item.actualMinutes {
+               latest.item.actualMinutes == pending.item.actualMinutes,
+               latest.item.actualOverride == pending.item.actualOverride {
                 latest.needsSync = false
                 local.save(items: [latest])
             }
