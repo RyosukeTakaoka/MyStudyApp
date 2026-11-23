@@ -71,7 +71,8 @@ struct TargetBandSection: View {
                 VStack(alignment: .leading, spacing: 3) {
                     let goal = Double(data.target.totalHoursGoal)
                     HStack {
-                        Text("累計 \(Int(data.totalHours))時間 / \(data.target.totalHoursGoal)時間")
+                        // 鑑定士の勉強だけの累計(学校の勉強と生活は入れない)
+                        Text("鑑定士の累計 \(Int(data.totalHours))時間 / \(data.target.totalHoursGoal)時間")
                             .font(.caption.monospacedDigit())
                         Spacer()
                         Text("\(Int((data.totalHours / max(goal, 1) * 100).rounded()))%")
@@ -79,11 +80,7 @@ struct TargetBandSection: View {
                             .foregroundStyle(.secondary)
                     }
                     HoursBar(total: data.totalHours, goal: goal, ticks: data.monthTicks(today: today))
-                    if let perMonth = data.hoursPerMonth(today: today), perMonth > 0, let date = data.target.targetDate {
-                        Text("\(DayKey.shortText(date))まで 月あたり 約\(Int(perMonth.rounded()))時間(目盛りは、同じペースで進んだときの各月の始まりの位置)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    PaceLine(data: data, today: today)
                 }
             }
             .padding(.vertical, 2)
@@ -140,5 +137,42 @@ private struct HoursBar: View {
 
     private func fraction(_ hours: Double) -> CGFloat {
         CGFloat(min(max(hours / max(goal, 1), 0), 1))
+    }
+}
+
+/// ペースの行: 今月あと○時間 ・ 1日あたり ○時間 ・ 月あたり ○時間
+private struct PaceLine: View {
+    let data: TargetBandData
+    let today: String
+
+    var body: some View {
+        if let perDay = data.hoursPerDay(today: today), perDay > 0 {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 10) {
+                    if let month = data.hoursLeftThisMonth(today: today) {
+                        pace("今月あと", month.hours > 0 ? "\(Self.hoursText(month.hours))時間" : "達成")
+                    }
+                    pace("1日あたり", "\(Self.hoursText(perDay))時間")
+                    if let perMonth = data.hoursPerMonth(today: today) {
+                        pace("月あたり", "\(Int(perMonth.rounded()))時間")
+                    }
+                }
+                Text("\(data.target.targetDate.map(DayKey.shortText) ?? "")までに目標に届くペース。目盛りは、そのペースで進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func pace(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.caption.bold().monospacedDigit())
+        }
+    }
+
+    /// 10時間未満は小数1けた(例 11.6 / 3.5)、それ以上は整数
+    static func hoursText(_ hours: Double) -> String {
+        hours < 10 ? String(format: "%.1f", hours) : String(Int(hours.rounded()))
     }
 }

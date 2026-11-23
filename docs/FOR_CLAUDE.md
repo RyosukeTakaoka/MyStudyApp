@@ -606,6 +606,8 @@ on conflict (user_id) do update set target_name = excluded.target_name, target_d
 ```
 
 アプリのタイマーの合計(分)は `select public.study_total_minutes();` で読めます。
+これは **鑑定士の勉強だけ**の合計です(科目「学校」と生活〔食事・移動など〕は入れない。区間ごとの判定は `public.is_exam_study(subject, title)`)。
+アプリの帯には、この累計から「今月あと○時間」「1日あたり○時間」「月あたり○時間」(試験の日までに目標に届くペース)を出しています。
 
 ### 答練の予定・成績・振り返り(`exam_results`)
 

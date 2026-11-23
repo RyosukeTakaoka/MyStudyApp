@@ -222,6 +222,21 @@ struct TargetBandData: Codable, Equatable, Sendable {
         return remaining / (Double(days) / 30.44)
     }
 
+    /// 目標の日まで、1日あたり何時間ずつ必要か(今日もふくめて数える)
+    func hoursPerDay(today: String) -> Double? {
+        guard let days = daysLeft(from: today), days > 0 else { return nil }
+        let remaining = Double(target.totalHoursGoal) - totalHours
+        guard remaining > 0 else { return 0 }
+        return remaining / Double(days)
+    }
+
+    /// 今月あと何時間か(次の月の目盛り = 来月1日 までに、同じペースなら何時間ふやすか)。
+    /// 目盛りが無いときは nil
+    func hoursLeftThisMonth(today: String) -> (hours: Double, until: String)? {
+        guard let first = monthTicks(today: today).first else { return nil }
+        return (max(first.hours - totalHours, 0), first.dayKey)
+    }
+
     /// これからの答練のうち、いちばん近いもの
     static func nextExam(in exams: [ExamResult], today: String) -> ExamResult? {
         exams.filter { $0.isUpcoming && $0.examDate >= today }
