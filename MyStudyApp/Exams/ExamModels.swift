@@ -171,9 +171,70 @@ struct StudyTarget: Codable, Equatable, Sendable {
 /// 「今日」の上の帯に出す中身(端末にも取っておく)
 struct TargetBandData: Codable, Equatable, Sendable {
     var target: StudyTarget
-    /// アプリで測った勉強時間の合計(分。生活の時間はのぞく)
+    /// アプリで測った勉強時間の合計(分。鑑定士の勉強だけ)
     var studyMinutes: Double
     var nextExam: ExamResult?
+    /// 月ごとの配分(Claude が決める。無ければ空)
+    var monthPlans: [MonthPlan] = []
+    /// 今月(1日の 0:00 から)の勉強時間(分。鑑定士の勉強だけ)
+    var minutesThisMonth: Double = 0
+
+    enum CodingKeys: String, CodingKey {
+        case target, studyMinutes, nextExam, monthPlans, minutesThisMonth
+    }
+
+    init(target: StudyTarget, studyMinutes: Double, nextExam: ExamResult?,
+         monthPlans: [MonthPlan] = [], minutesThisMonth: Double = 0) {
+        self.target = target
+        self.studyMinutes = studyMinutes
+        self.nextExam = nextExam
+        self.monthPlans = monthPlans
+        self.minutesThisMonth = minutesThisMonth
+    }
+
+    /// 前の版で端末に取っておいたもの(配分が無い)も読めるようにする
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        target = try c.decode(StudyTarget.self, forKey: .target)
+        studyMinutes = try c.decode(Double.self, forKey: .studyMinutes)
+        nextExam = try c.decodeIfPresent(ExamResult.self, forKey: .nextExam)
+        monthPlans = (try? c.decodeIfPresent([MonthPlan].self, forKey: .monthPlans)) ?? []
+        minutesThisMonth = (try? c.decodeIfPresent(Double.self, forKey: .minutesThisMonth)) ?? 0
+    }
+
+    /// その日をふくむ月の1日("2026-11-01")
+    static func monthStart(of dayKey: String) -> String { String(dayKey.prefix(7)) + "-01" }
+
+    /// 次の月の1日
+    static func nextMonthStart(after monthKey: String) -> String {
+        let parts = monthKey.split(separator: "-").compactMap { Int($0) }
+        guard parts.count >= 2 else { return monthKey }
+        var year = parts[0], month = parts[1] + 1
+        if month > 12 { month = 1; year += 1 }
+        return String(format: "%04d-%02d-01", year, month)
+    }
+
+    /// 月ごとの割りあて(今月から、目標の日の前の月まで)。配分が1つも無ければ nil。
+    /// 配分のある月はその時間、無い月は「残りの時間を等分」
+    func monthAllotments(today: String) -> [MonthAllotment]? {
+        guard !monthPlans.isEmpty, let targetDate = target.targetDate, targetDate > today else { return nil }
+        var months: [String] = []
+        var month = Self.monthStart(of: today)
+        while month < targetDate && months.count < 36 {
+            months.append(month)
+            month = Self.nextMonthStart(after: month)
+        }
+        guard !months.isEmpty else { return nil }
+        let planned = Dictionary(monthPlans.map { ($0.month, $0.plannedHours) }, uniquingKeysWith: { a, _ in a })
+        let base = hoursAtMonthStart
+        let known = months.compactMap { planned[$0] }.reduce(0, +)
+        let unknownCount = months.filter { planned[$0] == nil }.count
+        let share = unknownCount > 0 ? max(Double(target.totalHoursGoal) - base - known, 0) / Double(unknownCount) : 0
+        return months.map { MonthAllotment(month: $0, hours: planned[$0] ?? share, isPlanned: planned[$0] != nil) }
+    }
+
+    /// 今月の1日の時点の累計
+    var hoursAtMonthStart: Double { max(totalHours - minutesThisMonth / 60, 0) }
 
     /// その日から目標の日まで、あと何日か(目標の日が無ければ nil)
     func daysLeft(from today: String) -> Int? {
@@ -190,6 +251,16 @@ struct TargetBandData: Codable, Equatable, Sendable {
     /// 月の目盛り: 今日から目標の日まで同じペースで進んだら、各月の始まり(1日)に何時間になっているか。
     /// 例: 今日 11/23・目標 2027/8/1 → 12月, 1月, …, 8月 の目盛り(8月は目標の時間ちょうど)
     func monthTicks(today: String) -> [MonthTick] {
+        // 月ごとの配分があれば、その配分を積み上げた位置(今月の1日の累計 + 各月の割りあて)
+        if let allotments = monthAllotments(today: today) {
+            var cumulative = hoursAtMonthStart
+            return allotments.map { allotment in
+                cumulative += allotment.hours
+                let next = Self.nextMonthStart(after: allotment.month)
+                let monthNumber = Int(next.split(separator: "-")[1]) ?? 0
+                return MonthTick(month: monthNumber, dayKey: next, hours: cumulative)
+            }
+        }
         guard let targetDate = target.targetDate, targetDate > today,
               let start = DayKey.date(dayKey: today, minutes: 0),
               let end = DayKey.date(dayKey: targetDate, minutes: 0)
@@ -224,6 +295,13 @@ struct TargetBandData: Codable, Equatable, Sendable {
 
     /// 目標の日まで、1日あたり何時間ずつ必要か(今日もふくめて数える)
     func hoursPerDay(today: String) -> Double? {
+        // 月ごとの配分があれば「今月あと ÷ 今月の残りの日数(今日をふくむ)」
+        if let month = hoursLeftThisMonth(today: today), monthAllotments(today: today) != nil {
+            guard let a = DayKey.date(dayKey: today, minutes: 12 * 60),
+                  let b = DayKey.date(dayKey: month.until, minutes: 12 * 60) else { return nil }
+            let days = max(Int((b.timeIntervalSince(a) / 86400).rounded()), 1)
+            return month.hours / Double(days)
+        }
         guard let days = daysLeft(from: today), days > 0 else { return nil }
         let remaining = Double(target.totalHoursGoal) - totalHours
         guard remaining > 0 else { return 0 }
@@ -233,6 +311,9 @@ struct TargetBandData: Codable, Equatable, Sendable {
     /// 今月あと何時間か(次の月の目盛り = 来月1日 までに、同じペースなら何時間ふやすか)。
     /// 目盛りが無いときは nil
     func hoursLeftThisMonth(today: String) -> (hours: Double, until: String)? {
+        if let allotments = monthAllotments(today: today), let this = allotments.first {
+            return (max(this.hours - minutesThisMonth / 60, 0), Self.nextMonthStart(after: this.month))
+        }
         guard let first = monthTicks(today: today).first else { return nil }
         return (max(first.hours - totalHours, 0), first.dayKey)
     }
@@ -250,4 +331,38 @@ struct MonthTick: Equatable, Identifiable, Sendable {
     var dayKey: String      // その月の1日
     var hours: Double       // 同じペースなら、その日に何時間になっているか
     var id: String { dayKey }
+}
+
+/// 月ごとの配分(study_month_plans テーブル。Claude が書く)
+struct MonthPlan: Codable, Equatable, Sendable {
+    var month: String          // その月の1日("2026-12-01")
+    var plannedHours: Double
+
+    enum CodingKeys: String, CodingKey {
+        case month
+        case plannedHours = "planned_hours"
+    }
+
+    init(month: String, plannedHours: Double) {
+        self.month = month
+        self.plannedHours = plannedHours
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        month = try c.decode(String.self, forKey: .month)
+        if let v = try? c.decode(Double.self, forKey: .plannedHours) {
+            plannedHours = v
+        } else {
+            plannedHours = Double(try c.decode(String.self, forKey: .plannedHours)) ?? 0
+        }
+    }
+}
+
+/// 1か月分の割りあて
+struct MonthAllotment: Equatable, Sendable {
+    var month: String
+    var hours: Double
+    /// Claude が決めた配分か(false なら残りを等分した値)
+    var isPlanned: Bool
 }

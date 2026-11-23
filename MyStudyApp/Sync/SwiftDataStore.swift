@@ -29,6 +29,9 @@ final class CachedItem {
     var cautions: [String] = []
     /// 手で直した実績(あとから足した項目)
     var actualOverride: Int? = nil
+    /// つながっている週のやること(あとから足した項目)
+    var weekGoalTitle: String? = nil
+    var weekGoalBoxes: [Int] = []
     /// まだサーバーに送っていないチェックの変更があるか
     var needsSync: Bool
 
@@ -50,6 +53,8 @@ final class CachedItem {
         self.steps = item.steps
         self.cautions = item.cautions
         self.actualOverride = item.actualOverride
+        self.weekGoalTitle = item.weekGoalTitle
+        self.weekGoalBoxes = item.weekGoalBoxes
         self.needsSync = local.needsSync
     }
 
@@ -71,6 +76,8 @@ final class CachedItem {
         steps = item.steps
         cautions = item.cautions
         actualOverride = item.actualOverride
+        weekGoalTitle = item.weekGoalTitle
+        weekGoalBoxes = item.weekGoalBoxes
         needsSync = local.needsSync
     }
 
@@ -81,7 +88,8 @@ final class CachedItem {
                 id: id, date: date, kind: kind, startTime: startTime, endTime: endTime,
                 title: title, subject: subject, sortOrder: sortOrder, source: source,
                 done: done, doneAt: doneAt, actualMinutes: actualMinutes, note: note,
-                steps: steps, cautions: cautions, actualOverride: actualOverride
+                steps: steps, cautions: cautions, actualOverride: actualOverride,
+                weekGoalTitle: weekGoalTitle, weekGoalBoxes: weekGoalBoxes
             ),
             needsSync: needsSync
         )

@@ -27,10 +27,14 @@ final class TargetBandStore {
         let target = (try? await api.fetchStudyTarget()) ?? nil
         let minutes = try? await api.studyTotalMinutes()
         let exams = try? await api.fetchExams()
+        let plans = try? await api.fetchMonthPlans()
+        let thisMonth = try? await api.studyMinutesSince(TargetBandData.monthStart(of: today))
         var next = data ?? TargetBandData(target: .fallback, studyMinutes: 0, nextExam: nil)
         if let target { next.target = target }
         if let minutes { next.studyMinutes = minutes }
         if let exams { next.nextExam = TargetBandData.nextExam(in: exams, today: today) }
+        if let plans { next.monthPlans = plans }
+        if let thisMonth { next.minutesThisMonth = thisMonth }
         // 1つも読めなかったら(電波が無い・SQL がまだ)、何も変えない
         guard target != nil || minutes != nil || exams != nil else { return }
         data = next
@@ -157,7 +161,9 @@ private struct PaceLine: View {
                         pace("月あたり", "\(Int(perMonth.rounded()))時間")
                     }
                 }
-                Text("\(data.target.targetDate.map { DayKey.shortText($0) } ?? "")までに目標に届くペース。目盛りは、そのペースで進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)")
+                Text(data.monthAllotments(today: today) != nil
+                     ? "今月あと・1日あたりは Claude が決めた今月の配分から。目盛りは、配分どおり進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)"
+                     : "\(data.target.targetDate.map { DayKey.shortText($0) } ?? "")までに目標に届くペース。目盛りは、そのペースで進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

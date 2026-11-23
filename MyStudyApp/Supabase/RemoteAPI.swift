@@ -132,6 +132,24 @@ extension RemoteAPI {
         return rows.first
     }
 
+    /// 月ごとの配分
+    func fetchMonthPlans() async throws -> [MonthPlan] {
+        try await supabase
+            .from("study_month_plans")
+            .select("month, planned_hours")
+            .order("month", ascending: true)
+            .execute()
+            .value
+    }
+
+    /// その日(日本時間の 0:00)からあとの、鑑定士の勉強時間(分)
+    func studyMinutesSince(_ dayKey: String) async throws -> Double {
+        try await supabase
+            .rpc("study_minutes_since", params: ["p_from": dayKey])
+            .execute()
+            .value
+    }
+
     /// アプリで測った勉強時間の合計(分。生活の時間はのぞく)
     func studyTotalMinutes() async throws -> Double {
         try await supabase

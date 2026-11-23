@@ -605,6 +605,24 @@ on conflict (user_id) do update set target_name = excluded.target_name, target_d
   total_hours_goal = excluded.total_hours_goal, hours_before_app = excluded.hours_before_app;
 ```
 
+**3000時間の目標・試験の日・アプリより前の勉強時間は、この `study_targets` で Claude が決めます**(上の SQL の数を変えるだけ)。
+
+### 月ごとの勉強時間の配分(`study_month_plans`)
+
+月ごとに何時間勉強するかを決めると、アプリの帯の「今月あと○時間」「1日あたり○時間」と月の目盛りが、その配分どおりになります。
+配分の無い月は、残りの時間(目標 − 今月1日の累計 − 決めた月の合計)を等分します。1つも無ければ、試験の日まで同じペース。
+
+```sql
+insert into study_month_plans (user_id, month, planned_hours, note) values
+  ('<user_id>', '2026-12-01', 250, '期末テストの週は少なめ'),
+  ('<user_id>', '2027-01-01', 300, null)
+on conflict (user_id, month) do update set planned_hours = excluded.planned_hours, note = excluded.note;
+```
+
+- `month` は**その月の1日**、`planned_hours` は**鑑定士の勉強**の時間(学校と生活は入れない)
+- 今月どれだけ進んだかは `select public.study_minutes_since(date_trunc('month', now() at time zone 'Asia/Tokyo')::date);`(分)
+- 配分の合計が目標(3000時間)と合わなくてもかまいません(目盛りは配分どおりに描きます)
+
 アプリのタイマーの合計(分)は `select public.study_total_minutes();` で読めます。
 これは **鑑定士の勉強だけ**の合計です(科目「学校」と生活〔食事・移動など〕は入れない。区間ごとの判定は `public.is_exam_study(subject, title)`)。
 アプリの帯には、この累計から「今月あと○時間」「1日あたり○時間」「月あたり○時間」(試験の日までに目標に届くペース)を出しています。
@@ -649,7 +667,12 @@ select * from public.replace_plan('<user_id>', '2026-11-27', null, '[
 ```
 
 - `"goal"` は、その週の `week_goals.title` と**完全に同じ文字**にする(ちがうと何も起きません)
-- 埋まる箱は「その日の曜日の名前の箱」(例 金曜なら「金」の箱。7つで名前の無い箱は、その曜日の位置)を先に、無ければいちばん小さい番号の空いた箱
+- **どの箱を埋めるかは `"goal_boxes"` で1つずつ決められます**(順番どおりにやるとは限らないため、なるべく付けてください)。
+  数は**箱に出る番号**(`box_start` があれば問題番号)。例: 数学 176〜181 のうち 178 をやる予定 → `"goal":"数学","goal_boxes":[178]`、
+  180 と 181 をまとめてやる予定 → `"goal_boxes":[180,181]`。チェックを外すと、その箱だけ戻ります
+  (マイグレーション `20261123020000_goal_boxes_month_plans.sql` のあとから使えます)
+- `"goal_boxes"` を省略すると「その日の曜日の名前の箱」(例 金曜なら「金」の箱。7つで名前の無い箱は、その曜日の位置)を先に、無ければいちばん小さい番号の空いた箱
+- アプリの予定の行に「→ 数学 178」のように、つながっている箱が出ます
 - ユーザーが週の箱を自分で押すこともあるので、つないだやることを「両方押す」必要はなくなります
 
 ### 問題番号(`week_goals.box_start`)

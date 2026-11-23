@@ -22,6 +22,9 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
     var cautions: [String] = []
     /// 手で直した実績(分)。入っていれば、タイマーの記録より優先する(nil = タイマーの記録のまま)
     var actualOverride: Int? = nil
+    /// つながっている週のやることの題名と、埋める箱の番号(Claude が決める。アプリは表示するだけ)
+    var weekGoalTitle: String? = nil
+    var weekGoalBoxes: [Int] = []
 
     // Swift 側の名前(startTime)と、データベース側の列名(start_time)の対応表
     enum CodingKeys: String, CodingKey {
@@ -32,6 +35,8 @@ struct PlanItem: Identifiable, Equatable, Codable, Sendable {
         case doneAt = "done_at"
         case actualMinutes = "actual_minutes"
         case actualOverride = "actual_override"
+        case weekGoalTitle = "week_goal_title"
+        case weekGoalBoxes = "week_goal_boxes"
     }
 }
 
@@ -58,6 +63,14 @@ extension PlanItem {
         steps = (try? c.decodeIfPresent([String].self, forKey: .steps)) ?? []
         cautions = (try? c.decodeIfPresent([String].self, forKey: .cautions)) ?? []
         actualOverride = try? c.decodeIfPresent(Int.self, forKey: .actualOverride)
+        weekGoalTitle = try? c.decodeIfPresent(String.self, forKey: .weekGoalTitle)
+        weekGoalBoxes = ((try? c.decodeIfPresent([Int].self, forKey: .weekGoalBoxes)) ?? nil) ?? []
+    }
+
+    /// 予定の行に出す「→ 数学 178・179」(つながりが無ければ nil)
+    var weekGoalText: String? {
+        guard let title = weekGoalTitle, !title.isEmpty else { return nil }
+        return weekGoalBoxes.isEmpty ? title : title + " " + weekGoalBoxes.map(String.init).joined(separator: "・")
     }
 
     /// 手順か注意があるか

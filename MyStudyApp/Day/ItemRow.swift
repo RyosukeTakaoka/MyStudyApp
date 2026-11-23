@@ -65,6 +65,12 @@ struct ItemRow: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                // つながっている週のやること(チェックすると、この箱が埋まる)
+                if let goal = item.weekGoalText {
+                    Label(goal, systemImage: "square.grid.3x3.square")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let minutes = item.actualMinutes, minutes > 0 {
                     Label("実績 \(NowNext.durationText(minutes))" + (item.actualOverride != nil ? "(手直し)" : ""),
                           systemImage: item.actualOverride != nil ? "pencil" : "timer")
