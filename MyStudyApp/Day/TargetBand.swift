@@ -157,7 +157,7 @@ private struct PaceLine: View {
                         pace("月あたり", "\(Int(perMonth.rounded()))時間")
                     }
                 }
-                Text("\(data.target.targetDate.map(DayKey.shortText) ?? "")までに目標に届くペース。目盛りは、そのペースで進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)")
+                Text("\(data.target.targetDate.map { DayKey.shortText($0) } ?? "")までに目標に届くペース。目盛りは、そのペースで進んだときの各月の始まりの位置(学校の勉強と生活は入れていません)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
