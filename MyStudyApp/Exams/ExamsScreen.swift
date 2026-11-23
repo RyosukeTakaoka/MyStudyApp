@@ -1,11 +1,13 @@
 import Charts
 import SwiftUI
 
-// 「答練」タブ: これからの答練・点数の推移(科目ごとのグラフ)・受けた答練と振り返り。
+// 「答練」タブ: 上の切りかえで「これから」と「終わった」(点数の推移のグラフ・成績と振り返り)を分けて出す。
 struct ExamsScreen: View {
     let store: ExamStore
     @State private var editing: ExamResult?
     @State private var showsAdd = false
+    /// 「これから」と「終わった」のどちらを出すか
+    @State private var shows: ExamListMode = .upcoming
     @Environment(\.scenePhase) private var scenePhase
 
     private var today: String { DayKey.today(now: Date()) }
@@ -28,40 +30,60 @@ struct ExamsScreen: View {
                     )
                 }
 
+                // これから / 終わった の切りかえ
                 let upcoming = store.upcoming(today: today)
-                if !upcoming.isEmpty {
-                    Section("これからの答練") {
-                        ForEach(upcoming) { exam in
-                            NavigationLink(value: exam.id) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(exam.title).font(.subheadline.bold())
-                                    Text("\(exam.whenText) ・ \(exam.subject)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                let pastGroups = store.pastBySubject(today: today)
+                let pastCount = pastGroups.reduce(0) { $0 + $1.exams.count }
+                Section {
+                    Picker("答練の表示", selection: $shows) {
+                        Text("これから(\(upcoming.count))").tag(ExamListMode.upcoming)
+                        Text("終わった(\(pastCount))").tag(ExamListMode.past)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
+
+                switch shows {
+                case .upcoming:
+                    if upcoming.isEmpty {
+                        Text("これからの答練はありません。右上の + で足すか、Claude に入れてもらってください。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Section("これからの答練(近い順)") {
+                            ForEach(upcoming) { exam in
+                                NavigationLink(value: exam.id) {
+                                    UpcomingRow(exam: exam, today: today)
                                 }
                             }
                         }
                     }
-                }
 
-                let scored = store.exams.filter { $0.scoreForChart != nil }
-                if scored.count >= 1 {
-                    Section {
-                        ScoreChart(exams: scored)
-                            .frame(height: 220)
-                            .padding(.vertical, 6)
-                    } header: {
-                        Text("点数の推移")
-                    } footer: {
-                        Text("満点が入っている答練は、満点に対する%で描いています。")
+                case .past:
+                    let scored = store.exams.filter { $0.scoreForChart != nil }
+                    if !scored.isEmpty {
+                        Section {
+                            ScoreChart(exams: scored)
+                                .frame(height: 220)
+                                .padding(.vertical, 6)
+                        } header: {
+                            Text("点数の推移")
+                        } footer: {
+                            Text("満点が入っている答練は、満点に対する%で描いています。")
+                        }
                     }
-                }
-
-                ForEach(store.pastBySubject(today: today)) { group in
-                    Section(group.subject) {
-                        ForEach(group.exams) { exam in
-                            NavigationLink(value: exam.id) {
-                                ExamRow(exam: exam)
+                    if pastGroups.isEmpty {
+                        Text("終わった答練はまだありません。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(pastGroups) { group in
+                        Section(group.subject) {
+                            ForEach(group.exams) { exam in
+                                NavigationLink(value: exam.id) {
+                                    ExamRow(exam: exam)
+                                }
                             }
                         }
                     }
@@ -93,6 +115,40 @@ struct ExamsScreen: View {
     }
 }
 
+/// 答練タブの表示の切りかえ
+enum ExamListMode: Hashable {
+    case upcoming, past
+}
+
+/// これからの答練の1行(あと何日か)
+private struct UpcomingRow: View {
+    let exam: ExamResult
+    let today: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(exam.title).font(.subheadline.bold())
+                Text("\(exam.whenText) ・ \(exam.subject)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let days = daysUntil {
+                Text(days == 0 ? "今日" : "あと\(days)日")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(days <= 3 ? Color.orange : Color.secondary)
+            }
+        }
+    }
+
+    private var daysUntil: Int? {
+        guard let a = DayKey.date(dayKey: today, minutes: 12 * 60),
+              let b = DayKey.date(dayKey: exam.examDate, minutes: 12 * 60) else { return nil }
+        return Int((b.timeIntervalSince(a) / 86400).rounded())
+    }
+}
+
 /// 一覧の1行
 private struct ExamRow: View {
     let exam: ExamResult
@@ -109,6 +165,10 @@ private struct ExamRow: View {
             if !exam.scoreText.isEmpty {
                 Text(exam.scoreText)
                     .font(.caption.monospacedDigit())
+            } else {
+                Label("点数まだ(開いて「直す」で入れる)", systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
             if let missed = exam.missedPoints, !missed.isEmpty {
                 Text("論点漏れ: \(missed)")
