@@ -18,6 +18,18 @@ enum PermanentBlockStore {
     private static let niconicoAppsKey = "permanent.niconicoApps"
     private static let invidiousKey = "permanent.invidiousHosts"
     private static let invidiousUpdatedKey = "permanent.invidiousUpdatedAt"
+    private static let customKey = "permanent.customDomains"
+
+    /// 自分で足したサイト(足すだけで、外せない)
+    static var customDomains: [String] {
+        AppGroup.defaults.stringArray(forKey: customKey) ?? []
+    }
+    static func addCustomDomain(_ host: String) {
+        var list = customDomains
+        guard !list.contains(host) else { return }
+        list.append(host)
+        AppGroup.defaults.set(list, forKey: customKey)
+    }
 
     /// 常時ブロックするアプリ(YouTube・X・Instagram・TikTok など。ユーザーが Apple の画面で選ぶ)
     static func apps() -> FamilyActivitySelection { load(appsKey) }
@@ -63,7 +75,8 @@ enum PermanentBlock {
         let store = ManagedSettingsStore(named: .permanent)
 
         // サイト: 名前で止める(Safari などのブラウザで開けなくなる)
-        let domains = PermanentBlockList.domains(today: today, invidious: PermanentBlockStore.invidiousHosts)
+        let domains = PermanentBlockList.domains(today: today, invidious: PermanentBlockStore.invidiousHosts,
+                                                 custom: PermanentBlockStore.customDomains)
         store.webContent.blockedByFilter = .specific(Set(domains.map { WebDomain(domain: $0) }))
 
         // アプリ: ユーザーが選んだアプリ(1月1日からはニコニコ動画のアプリも)

@@ -16,9 +16,12 @@ enum PermanentBlockList {
     static let niconico = ["nicovideo.jp", "www.nicovideo.jp", "sp.nicovideo.jp", "nico.ms"]
 
     /// Invidious(YouTube の代わりのサイト)のよく知られた公開ホスト。
-    /// 最新の一覧(api.invidious.io)を読めなかったときに使う
+    /// 公式の説明書(docs.invidious.io)に今のっているものを先に。最新の一覧(api.invidious.io)のあとに足す
     static let invidiousFallback = [
-        "yewtu.be", "inv.nadeko.net", "invidious.nerdvpn.de", "iv.ggtyler.dev", "invidious.jing.rocks",
+        "inv.nadeko.net", "invidious.nerdvpn.de", "yt.chocolatemoo53.com", "invidious.tiekoetter.com",
+        "yewtu.be", "invidious.flokinet.to", "invidious.adminforge.de", "iv.melmac.space", "invidious.private.coffee",
+        "inv.vern.cc", "invidious.reallyaweso.me", "invidious.dhusch.de", "invidious.0011.lt",
+        "iv.ggtyler.dev", "invidious.jing.rocks",
         "inv.tux.pizza", "invidious.privacyredirect.com", "invidious.protokolla.fi", "yt.artemislena.eu",
         "invidious.f5.si", "iv.datura.network", "invidious.perennialte.ch", "invidious.einfachzocken.eu",
         "inv.in.projectsegfau.lt", "invidious.drgns.space", "invidious.materialio.us", "invidious.fdn.fr",
@@ -26,18 +29,29 @@ enum PermanentBlockList {
         "invidious.slipfox.xyz", "invidious.io",
     ]
 
-    /// その日に止めるサイト(上限 50 件。決まったサイトを先に入れ、残りの枠に Invidious を入れる)
-    static func domains(today: String, invidious: [String]) -> [String] {
+    /// その日に止めるサイト(上限 50 件)。入れる順番:
+    ///   1. 決まったサイト(YouTube・X・Instagram・TikTok、1/1 からニコニコ)
+    ///   2. 自分で足したサイト(custom)
+    ///   3. Invidious(最新の一覧 → よく知られたホスト)
+    static func domains(today: String, invidious: [String], custom: [String] = []) -> [String] {
         var list = youtube + x + instagram + tiktok
         if today >= niconicoStartDay {
             list += niconico
         }
-        let hosts = invidious.isEmpty ? invidiousFallback : invidious
-        for host in hosts.map(normalize) where !host.isEmpty && !list.contains(host) {
+        for host in (custom + invidious + invidiousFallback).map(normalize) where !host.isEmpty && !list.contains(host) {
             guard list.count < maxDomains else { break }
             list.append(host)
         }
         return Array(list.prefix(maxDomains))
+    }
+
+    /// 自分で足すサイトの入力を、ホストの形にする。おかしな入力なら nil
+    static func customHost(from input: String) -> String? {
+        let host = normalize(input)
+        guard host.contains("."), !host.contains(" "),
+              host.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" })
+        else { return nil }
+        return host
     }
 
     /// "https://Yewtu.be/" → "yewtu.be"

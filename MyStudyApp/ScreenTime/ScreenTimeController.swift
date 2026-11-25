@@ -96,6 +96,21 @@ final class ScreenTimeController {
         applyPermanentBlock()
     }
 
+    /// 止めるサイトを自分で足す(足すだけで、外せない)。足せたら true
+    @discardableResult
+    func addPermanentDomain(_ input: String) -> Bool {
+        guard let host = PermanentBlockList.customHost(from: input) else { return false }
+        PermanentBlockStore.addCustomDomain(host)
+        applyPermanentBlock()
+        return true
+    }
+
+    /// 今止めているサイトの一覧(50件まで)
+    var permanentDomains: [String] {
+        PermanentBlockList.domains(today: DayKey.today(now: Date()), invidious: PermanentBlockStore.invidiousHosts,
+                                   custom: PermanentBlockStore.customDomains)
+    }
+
     var permanentAppCount: Int { PermanentBlockStore.apps().applicationTokens.count }
     var niconicoAppCount: Int { PermanentBlockStore.niconicoApps().applicationTokens.count }
 

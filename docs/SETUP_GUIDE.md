@@ -855,7 +855,8 @@ iOS 27 で、iPhone のホーム画面1ページ分の **特大(たて長)** ウ
 | YouTube(youtube.com・www・m・youtu.be・youtube-nocookie.com) | サイトは名前で止める。アプリは選んで止める |
 | X(x.com・twitter.com・mobile など) | 同じ |
 | Instagram・TikTok | 同じ |
-| Invidious(YouTube の代わりのサイト) | 公開ホストの一覧(api.invidious.io)を1週間に1回読みこんで止める(読めないときは、よく知られたホスト24件) |
+| Invidious(YouTube の代わりのサイト) | 公式の説明書にのっているホスト(inv.nadeko.net など)と、公開ホストの一覧(api.invidious.io、1週間に1回読みこむ)を止める |
+| 自分で見つけたサイト | 「止めるサイトを足す」に入れると止まる(足すだけで、外せない)。Invidious の一覧より先に枠をとる |
 | ニコニコ動画(nicovideo.jp・nico.ms とアプリ) | **2027年1月1日 0:00 から**(アプリを閉じていても、拡張機能が足す) |
 
 - サイトは Safari などのブラウザで開けなくなります。スクリーンタイムの決まりで、止めるサイトは **50件まで** です(決まったサイトを先に入れ、残りの枠に Invidious を入れます)

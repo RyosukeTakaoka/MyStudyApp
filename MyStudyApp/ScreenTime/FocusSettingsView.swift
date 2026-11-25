@@ -12,6 +12,9 @@ struct FocusSettingsView: View {
     @State private var permanentSelection = PermanentBlockStore.apps()
     @State private var showsNiconicoPicker = false
     @State private var niconicoSelection = PermanentBlockStore.niconicoApps()
+    /// 自分で足すサイトの入力欄
+    @State private var newDomain = ""
+    @State private var domainMessage: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -104,6 +107,30 @@ struct FocusSettingsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+            // まだ見られるサイトを見つけたら、ここで足す(足すだけで、外せない)
+            HStack {
+                TextField("止めるサイトを足す(例: yewtu.be)", text: $newDomain)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                Button("足す") {
+                    if screenTime.addPermanentDomain(newDomain) {
+                        domainMessage = "「\(PermanentBlockList.normalize(newDomain))」を止めました。"
+                        newDomain = ""
+                    } else {
+                        domainMessage = "サイトの名前(例: yewtu.be)を入れてください。"
+                    }
+                }
+                .disabled(newDomain.trimmingCharacters(in: .whitespaces).isEmpty || !screenTime.isAuthorized)
+            }
+            if let domainMessage {
+                Text(domainMessage).font(.caption).foregroundStyle(.secondary)
+            }
+            DisclosureGroup("止めているサイト(\(screenTime.permanentDomains.count) 件)") {
+                Text(screenTime.permanentDomains.joined(separator: "\n"))
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
             }
             Button("止めるアプリを足す(YouTube・X・Instagram・TikTok)") { showsPermanentPicker = true }
                 .disabled(!screenTime.isAuthorized)
