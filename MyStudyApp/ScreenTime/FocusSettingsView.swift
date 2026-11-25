@@ -55,6 +55,29 @@ struct FocusSettingsView: View {
                     Text("「予定ブロックの時間」をオンにすると、アプリを閉じていても予定の開始時刻に始まり、終了時刻に解除されます。チェックを付けると、その予定の集中モードは終わります。15分未満の予定は対象外です。")
                 }
 
+                // 登録してある自動の時間帯(予定の時間になると、自動で集中モードになる)
+                Section {
+                    if screenTime.registeredBlocks.isEmpty {
+                        Text(autoBlocks ? "登録してある時間帯はありません(今日・明日の勉強の予定が無いか、まだ同期していません)" : "自動はオフです")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(screenTime.registeredBlocks, id: \.name) { window in
+                            Text("\(window.start.formatted(.dateTime.month().day().hour().minute()))〜\(window.end.formatted(date: .omitted, time: .shortened))")
+                                .font(.subheadline.monospacedDigit())
+                        }
+                    }
+                    if let problem = screenTime.registrationProblem {
+                        Text(problem)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("自動で集中モードになる時間帯")
+                } footer: {
+                    Text("時間になると、アプリを閉じていても集中モードになります。もしならなかったときも、アプリを開けばすぐにかかります。")
+                }
+
                 Section("今すぐ集中モード") {
                     if let until = screenTime.activeUntil {
                         Label("集中モード中(\(until.formatted(date: .omitted, time: .shortened)) まで)", systemImage: "lock.fill")

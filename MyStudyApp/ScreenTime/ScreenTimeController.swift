@@ -19,6 +19,10 @@ final class ScreenTimeController {
     }
     private(set) var flags = FocusFlagsStore.load(AppGroup.defaults)
     var errorMessage: String?
+    /// 自動の時間帯の登録に失敗したときの理由(設定画面に出す。うまくいけば nil)
+    private(set) var registrationProblem: String?
+    /// 登録してある自動の時間帯(設定画面に出す)
+    private(set) var registeredBlocks: [FocusPlan.Window] = []
 
     private let center = DeviceActivityCenter()
     private static let scheduledKey = "focus.scheduledBlocks"
@@ -64,8 +68,20 @@ final class ScreenTimeController {
             flags.finish(name: flags.windowName, now: Date(), blocks: FocusBlockStore.load(AppGroup.defaults))
             save()
         }
+        // 予定の時間になっているのに、まだかかっていなければかける
+        // (時間の始まりに拡張機能が呼ばれなかったときの保険)
+        beginCoveringBlockIfNeeded()
+        registeredBlocks = FocusBlockStore.load(AppGroup.defaults).filter { $0.end > Date() }
         FocusShield.sync()
         applyPermanentBlock()
+    }
+
+    /// 今の時刻をふくむ自動の時間帯があり、まだかかっていなければかける(自動がオンのときだけ)
+    private func beginCoveringBlockIfNeeded(now: Date = Date()) {
+        guard isReady, UserDefaults.standard.object(forKey: AppSettings.focusAutoBlocksKey) as? Bool ?? true else { return }
+        if flags.beginCoveringBlock(now: now, blocks: FocusBlockStore.load(AppGroup.defaults)) {
+            save()
+        }
     }
 
     // MARK: - 常時ブロック(365日24時間。アプリの中に外すボタンは置かない)
@@ -159,6 +175,12 @@ final class ScreenTimeController {
                 flags.dismissed.append(name)
             }
         }
+        // 自分で終えたので、今の時刻をふくむ自動の時間帯にも、もう戻らないようにする
+        let now = Date()
+        for window in FocusBlockStore.load(AppGroup.defaults)
+        where window.start <= now && now < window.end && !flags.dismissed.contains(window.name) {
+            flags.dismissed.append(window.name)
+        }
         flags.windowEnd = nil
         flags.windowName = nil
         save()
@@ -209,14 +231,17 @@ final class ScreenTimeController {
         let removed = oldNames.filter { !newNames.contains($0) }
         center.stopMonitoring(removed.map { DeviceActivityName($0) })
         var registered = oldNames.filter { newNames.contains($0) }
+        var problems: [String] = []
         for window in windows where !oldNames.contains(window.name) {
             do {
                 try center.startMonitoring(DeviceActivityName(window.name), during: Self.schedule(start: window.start, end: window.end))
                 registered.append(window.name)
             } catch {
-                print("集中モードの登録に失敗: \(window.name) \(error)")
+                let range = "\(window.start.formatted(date: .omitted, time: .shortened))〜\(window.end.formatted(date: .omitted, time: .shortened))"
+                problems.append("\(range): \(error.localizedDescription)")
             }
         }
+        registrationProblem = problems.isEmpty ? nil : "自動の時間帯を登録できませんでした。\n" + problems.joined(separator: "\n")
         AppGroup.defaults.set(registered, forKey: Self.scheduledKey)
         // 重なったときの切りかえ用に、登録できた時間帯を覚えておく(拡張機能も読む)
         let registeredWindows = windows.filter { registered.contains($0.name) }
@@ -227,6 +252,11 @@ final class ScreenTimeController {
         if let active = flags.windowName, FocusPlan.kind(fromName: active) == "block", !newNames.contains(active) {
             flags.finish(name: active, now: now, blocks: registeredWindows)
         }
+        // すでに始まっている時間帯は、iPhone が「始まり」を知らせてくれないことがあるので、ここでかける
+        if enabled && isReady {
+            flags.beginCoveringBlock(now: now, blocks: registeredWindows)
+        }
+        registeredBlocks = registeredWindows.filter { $0.end > now }
         save()
         FocusShield.sync()
     }

@@ -55,6 +55,20 @@ extension FocusFlags {
     }
 }
 
+extension FocusFlags {
+    /// 今かかっていなければ、今の時刻をふくむ自動の時間帯(blocks)をかける。かけたら true。
+    /// (拡張機能が時間の始まりに呼ばれなかったときの保険。アプリを開いたとき・開いているあいだに使う)
+    @discardableResult
+    mutating func beginCoveringBlock(now: Date, blocks: [FocusPlan.Window]) -> Bool {
+        guard !shouldShield(now: now) else { return false }
+        let covering = blocks.filter { $0.start <= now && now < $0.end && !dismissed.contains($0.name) }
+        guard let window = covering.max(by: { $0.end < $1.end }) else { return false }
+        windowEnd = window.end
+        windowName = window.name
+        return true
+    }
+}
+
 /// 登録した自動の時間帯の一覧(アプリと拡張機能の両方が読む。重なったときの切りかえに使う)
 enum FocusBlockStore {
     private static let key = "focus.blockWindows"
