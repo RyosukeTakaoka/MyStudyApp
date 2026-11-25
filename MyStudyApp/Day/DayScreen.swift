@@ -95,6 +95,8 @@ struct DayScreen: View {
                 screenTime.refresh()
                 checkAutoTimer()
                 requestTimerSync()
+                // 常時ブロックの Invidious の一覧を新しくする(1週間に1回まで)
+                await screenTime.updateInvidiousList()
             }
             // 画面が出ているあいだ、30秒ごとに自動タイマーの開始・終了を確かめる
             .task {

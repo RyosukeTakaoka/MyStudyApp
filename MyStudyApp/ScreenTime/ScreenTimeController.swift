@@ -49,6 +49,7 @@ final class ScreenTimeController {
             """
         }
         isAuthorized = AuthorizationCenter.shared.authorizationStatus == .approved
+        applyPermanentBlock()
     }
 
     // MARK: - 状態の読み直し
@@ -64,6 +65,51 @@ final class ScreenTimeController {
             save()
         }
         FocusShield.sync()
+        applyPermanentBlock()
+    }
+
+    // MARK: - 常時ブロック(365日24時間。アプリの中に外すボタンは置かない)
+
+    /// 常時ブロックをかけ直し、2027/1/1 にニコニコ動画を足す合図を登録する
+    func applyPermanentBlock(now: Date = Date()) {
+        guard isAuthorized else { return }
+        PermanentBlock.apply(now: now)
+        // 1月1日 0:00 に、アプリを閉じていても拡張機能がニコニコ動画を足せるように登録する
+        let today = DayKey.today(now: now)
+        guard today < PermanentBlockList.niconicoStartDay,
+              let start = DayKey.date(dayKey: PermanentBlockList.niconicoStartDay, minutes: 0)
+        else { return }
+        let name = DeviceActivityName(PermanentBlockList.niconicoActivityName)
+        guard !center.activities.contains(name) else { return }
+        try? center.startMonitoring(name, during: Self.schedule(start: start, end: start.addingTimeInterval(20 * 60)))
+    }
+
+    /// 常時ブロックするアプリを足す(外すことはできない)
+    func addPermanentApps(_ selection: FamilyActivitySelection) {
+        PermanentBlockStore.addApps(selection)
+        applyPermanentBlock()
+    }
+
+    /// 2027/1/1 から止めるアプリ(ニコニコ動画)を足す
+    func addNiconicoApps(_ selection: FamilyActivitySelection) {
+        PermanentBlockStore.addNiconicoApps(selection)
+        applyPermanentBlock()
+    }
+
+    var permanentAppCount: Int { PermanentBlockStore.apps().applicationTokens.count }
+    var niconicoAppCount: Int { PermanentBlockStore.niconicoApps().applicationTokens.count }
+
+    /// Invidious の公開ホストの一覧を読み直す(1週間に1回まで)。読めなければ前の一覧のまま
+    func updateInvidiousList(now: Date = Date()) async {
+        if let last = PermanentBlockStore.invidiousUpdatedAt, now.timeIntervalSince(last) < 7 * 24 * 3600 { return }
+        guard let url = URL(string: "https://api.invidious.io/instances.json?sort_by=type,users"),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200
+        else { return }
+        let hosts = PermanentBlockList.parseInvidiousInstances(data)
+        guard !hosts.isEmpty else { return }
+        PermanentBlockStore.saveInvidious(hosts, at: now)
+        applyPermanentBlock(now: now)
     }
 
     // MARK: - 手動・タイマー
