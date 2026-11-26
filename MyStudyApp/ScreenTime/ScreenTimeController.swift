@@ -76,6 +76,19 @@ final class ScreenTimeController {
         applyPermanentBlock()
     }
 
+    /// 自分で「完了・一時停止・記録して終了」を押したとき: 自動の集中モードを終える(押したほうを優先)。
+    /// 次の勉強の予定の時間になれば、また自動で入る
+    func endAutoByUser(now: Date = Date()) {
+        let blocks = FocusBlockStore.load(AppGroup.defaults)
+        let active = flags.windowName
+        flags.endBlocksByUser(now: now, blocks: blocks)
+        if let active, FocusPlan.kind(fromName: active) == "block" {
+            center.stopMonitoring([DeviceActivityName(active)])
+        }
+        save()
+        FocusShield.sync()
+    }
+
     /// 今の時刻をふくむ自動の時間帯があり、まだかかっていなければかける(自動がオンのときだけ)
     private func beginCoveringBlockIfNeeded(now: Date = Date()) {
         guard isReady, UserDefaults.standard.object(forKey: AppSettings.focusAutoBlocksKey) as? Bool ?? true else { return }
@@ -224,8 +237,16 @@ final class ScreenTimeController {
         let windows = (enabled && isReady)
             ? FocusPlan.blockWindows(items: items, now: now, dismissed: flags.dismissed)
             : []
-        let newNames = windows.map(\.name)
+        var newNames = windows.map(\.name)
         let oldNames = AppGroup.defaults.stringArray(forKey: Self.scheduledKey) ?? []
+        // 今かかっている自動の時間帯は、予定の終わりを過ぎても(自分で押すまで)続けるので、止めずに残す
+        var keptWindows: [FocusPlan.Window] = []
+        if let active = flags.windowName, FocusPlan.kind(fromName: active) == "block",
+           flags.shouldShield(now: now), !newNames.contains(active), !flags.dismissed.contains(active),
+           let saved = FocusBlockStore.load(AppGroup.defaults).first(where: { $0.name == active }) {
+            newNames.append(active)
+            keptWindows.append(saved)
+        }
 
         // なくなったものは止め、増えたものだけ登録する(登録済みのものはそのまま)
         let removed = oldNames.filter { !newNames.contains($0) }
@@ -244,7 +265,7 @@ final class ScreenTimeController {
         registrationProblem = problems.isEmpty ? nil : "自動の時間帯を登録できませんでした。\n" + problems.joined(separator: "\n")
         AppGroup.defaults.set(registered, forKey: Self.scheduledKey)
         // 重なったときの切りかえ用に、登録できた時間帯を覚えておく(拡張機能も読む)
-        let registeredWindows = windows.filter { registered.contains($0.name) }
+        let registeredWindows = windows.filter { registered.contains($0.name) } + keptWindows
         FocusBlockStore.save(registeredWindows, AppGroup.defaults)
 
         // 予定がチェックされたり消されたりして、かかっている予定ブロックの集中モードが不要になったら外す

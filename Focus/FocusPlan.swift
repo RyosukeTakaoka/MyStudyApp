@@ -46,11 +46,24 @@ extension FocusFlags {
         windowEnd = nil
         windowName = nil
         let covering = blocks.filter { block in
-            block.name != name && block.start <= now && now < block.end && !dismissed.contains(block.name)
+            block.name != name && block.canBegin(at: now) && !dismissed.contains(block.name)
         }
         if let next = covering.max(by: { $0.end < $1.end }) {
             windowEnd = next.end
             windowName = next.name
+        }
+    }
+
+    /// 自分で「完了・一時停止・記録して終了」を押したとき: 今かかっている自動の集中モードを終える。
+    /// 今の時刻をふくむ自動の時間帯も、もうかけ直さない(次の予定の時間になれば、また入る)
+    mutating func endBlocksByUser(now: Date, blocks: [FocusPlan.Window]) {
+        for block in blocks where block.start <= now && now < block.end && !dismissed.contains(block.name) {
+            dismissed.append(block.name)
+        }
+        if let active = windowName, FocusPlan.kind(fromName: active) == "block" {
+            if !dismissed.contains(active) { dismissed.append(active) }
+            windowEnd = nil
+            windowName = nil
         }
     }
 }
@@ -61,7 +74,7 @@ extension FocusFlags {
     @discardableResult
     mutating func beginCoveringBlock(now: Date, blocks: [FocusPlan.Window]) -> Bool {
         guard !shouldShield(now: now) else { return false }
-        let covering = blocks.filter { $0.start <= now && now < $0.end && !dismissed.contains($0.name) }
+        let covering = blocks.filter { $0.canBegin(at: now) && !dismissed.contains($0.name) }
         guard let window = covering.max(by: { $0.end < $1.end }) else { return false }
         windowEnd = window.end
         windowName = window.name
@@ -112,7 +125,15 @@ enum FocusPlan {
     struct Window: Codable, Equatable {
         let name: String
         let start: Date
+        /// 時間帯の終わり(自動の時間帯は、その日の 23:59。押し忘れても、ここで必ず外れる)
         let end: Date
+        /// 予定の終わりの時刻(自動の時間帯だけ)。アプリが「かけ直す」のは、この時刻まで
+        var plannedEnd: Date? = nil
+
+        /// アプリが新しくかけてよい時刻か(始まり〜予定の終わり)
+        func canBegin(at now: Date) -> Bool {
+            start <= now && now < (plannedEnd ?? end)
+        }
     }
 
     /// 名前の形: "focus.<種類>.<終わりの時刻(秒)>.<id>"(拡張機能は名前から終わりの時刻を読む)
@@ -131,55 +152,36 @@ enum FocusPlan {
         return Date(timeIntervalSince1970: TimeInterval(seconds))
     }
 
-    /// 続いている予定を1つの時間帯につなげるときの、あいだのすき間の上限(5分)
-    static let mergeGapSeconds: TimeInterval = 5 * 60
-
-    /// 予定ブロックから、自動で集中モードにする時間帯を作る。
-    /// 1. 未チェック・勉強の予定・終わりの時刻がある・これから終わるブロックを選ぶ
-    /// 2. 続いている予定(すき間5分以内)は、1つの時間帯につなげる(例 7:50〜8:00 と 8:00〜8:15 → 7:50〜8:15)
-    /// 3. すでに始まっている時間帯は「今から」にする
-    /// 4. それでも15分(スクリーンタイムの決まりの最短)に足りないときは、終わりはそのままで、始まりを前に伸ばして15分にする
+    /// 予定ブロックから、自動で集中モードにする時間帯を作る(予定1つにつき1つ)。
+    ///   ・未チェック・勉強の予定・終わりの時刻がある・まだ予定の終わりが来ていないブロックだけ
+    ///   ・始まりは予定の開始(すでに始まっていれば今)。終わりは、その日の 23:59
+    ///     (予定の終わりの時刻を過ぎても、自分で完了・一時停止などを押すまで続くように。押し忘れても 23:59 で必ず外れる)
+    ///   ・近いものから maxBlockWindows 個まで
     static func blockWindows(
         items: [PlanItem],
         now: Date,
         dismissed: [String] = [],
         calendar: Calendar = DayKey.gregorian()
     ) -> [Window] {
-        // 1. 対象の予定(始まり・終わり)
-        let spans: [(start: Date, end: Date)] = items.compactMap { item in
+        let windows: [Window] = items.compactMap { item in
             // 食事・睡眠・移動などの生活の予定では、集中モードにしない
             guard item.isBlock, !item.done, item.isStudy,
                   let startMinutes = item.startMinutes, let endMinutes = item.endMinutes,
                   let start = DayKey.date(dayKey: item.date, minutes: startMinutes, calendar: calendar),
-                  let end = DayKey.date(dayKey: item.date, minutes: endMinutes, calendar: calendar),
-                  end > start, end > now
+                  let plannedEnd = DayKey.date(dayKey: item.date, minutes: endMinutes, calendar: calendar),
+                  let dayEnd = DayKey.date(dayKey: item.date, minutes: 23 * 60 + 59, calendar: calendar),
+                  plannedEnd > start, plannedEnd > now, dayEnd > now
             else { return nil }
-            return (start, end)
-        }
-        .sorted { ($0.start, $0.end) < ($1.start, $1.end) }
-
-        // 2. 続いている予定をつなげる
-        var merged: [(start: Date, end: Date)] = []
-        for span in spans {
-            if let last = merged.last, span.start.timeIntervalSince(last.end) <= mergeGapSeconds {
-                merged[merged.count - 1].end = max(last.end, span.end)
-            } else {
-                merged.append(span)
-            }
-        }
-
-        // 3・4. 時間帯にする(名前は終わりの時刻で決める。途中で予定をチェックしても、同じ時間帯なら名前は変わらない)
-        let windows: [Window] = merged.compactMap { span in
-            guard span.end.timeIntervalSince(now) >= 60 else { return nil }   // 残り1分未満はかけない
-            let name = Self.name(kind: "block", end: span.end, id: "auto")
+            let name = Self.name(kind: "block", end: dayEnd, id: String(item.id.uuidString.prefix(8)))
             guard !dismissed.contains(name) else { return nil }
-            var start = max(span.start, now)
-            if span.end.timeIntervalSince(start) < minimumSeconds {
-                start = span.end.addingTimeInterval(-minimumSeconds)
+            var begin = max(start, now)
+            // スクリーンタイムの決まりで、時間帯は15分以上(夜遅い予定は、始まりを少し前にする)
+            if dayEnd.timeIntervalSince(begin) < minimumSeconds {
+                begin = dayEnd.addingTimeInterval(-minimumSeconds)
             }
-            return Window(name: name, start: start, end: span.end)
+            return Window(name: name, start: begin, end: dayEnd, plannedEnd: plannedEnd)
         }
-        return Array(windows.prefix(maxBlockWindows))
+        return Array(windows.sorted { $0.start < $1.start }.prefix(maxBlockWindows))
     }
 
     /// タイマー中の集中モードの終わりの時刻。

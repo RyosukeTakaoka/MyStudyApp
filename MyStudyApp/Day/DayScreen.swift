@@ -87,7 +87,7 @@ struct DayScreen: View {
                     lastWidgetSnapshot = snapshot
                     publishWidget(snapshot)
                 }
-                store.applyWidgetToggles(SharedStore.takePendingToggles())
+                applyWidgetToggles()
                 applyWidgetTimerEvents()
                 store.setOnline(network.isOnline)
                 store.requestSync()
@@ -203,7 +203,7 @@ struct DayScreen: View {
                 switch phase {
                 case .active:
                     // 開き直したら、ウィジェットでのチェックを取りこみ、日付の変化を確認して同期する
-                    store.applyWidgetToggles(SharedStore.takePendingToggles())
+                    applyWidgetToggles()
                     applyWidgetTimerEvents()
                     requestTimerSync()
                     store.refreshToday()
@@ -574,6 +574,10 @@ struct DayScreen: View {
         } else {
             // 一時停止までの区間を記録に残す
             store.recordSession(timer.pause(itemId: itemId, now: Date()))
+            // 自動の集中モードは、一時停止を押したら終える(押したほうを優先)
+            if StudyKind.isStudy(subject: running.subject, title: running.title) {
+                screenTime.endAutoByUser()
+            }
         }
         updateFocusForTimers()
         // ライブアクティビティも、止まった時間/続きの時間に出し直す
@@ -585,9 +589,14 @@ struct DayScreen: View {
     /// タイマーを止めて、勉強時間を記録する。
     /// reason: 記録に残す止めた理由(省略すると、完了なら done、そうでなければ stop)
     private func stopTimer(_ itemId: UUID, markDone: Bool, reason: String? = nil) {
+        let stopped = timer.timer(for: itemId)
         guard let result = timer.stop(itemId: itemId, now: Date(), reason: reason ?? (markDone ? "done" : "stop")) else { return }
         store.recordSession(result.session)
         LiveActivityController.end(itemId: itemId)
+        // 自分で「完了」「記録して終了」を押したら、自動の集中モードも終える(自動タイマーが止まったときは別)
+        if reason != "auto", let stopped, StudyKind.isStudy(subject: stopped.subject, title: stopped.title) {
+            screenTime.endAutoByUser()
+        }
         updateFocusForTimers()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.recordStudy(itemId: result.itemId, minutes: result.minutes, markDone: markDone)
@@ -634,6 +643,16 @@ struct DayScreen: View {
         updateFocusForTimers()
     }
 
+    /// ウィジェットでのチェックを取りこむ。勉強の予定を完了にしていたら、自動の集中モードを終える
+    private func applyWidgetToggles() {
+        let toggles = SharedStore.takePendingToggles()
+        let studyIds = Set(store.items.filter(\.isStudy).map(\.id))
+        if toggles.contains(where: { $0.done && studyIds.contains($0.itemId) }) {
+            screenTime.endAutoByUser()
+        }
+        store.applyWidgetToggles(toggles)
+    }
+
     /// ウィジェットのボタンで変わったタイマーを読み直し、止めた区間・勉強時間を記録に取りこむ
     private func applyWidgetTimerEvents() {
         let events = TimerWidgetActions.takeEvents()
@@ -644,6 +663,9 @@ struct DayScreen: View {
             case .stop:
                 LiveActivityController.end(itemId: event.itemId)
                 store.recordStudy(itemId: event.itemId, minutes: event.minutes ?? 0, markDone: event.markDone)
+                if let session = event.session, StudyKind.isStudy(subject: session.subject, title: session.title) {
+                    screenTime.endAutoByUser()
+                }
             case .pause, .resume:
                 if let updated = timer.timer(for: event.itemId) {
                     LiveActivityController.update(updated)
@@ -959,6 +981,10 @@ struct DayScreen: View {
     private func toggle(_ item: PlanItem) {
         // 睡眠はチェックしない(長押しでタイマーを使って、実際に寝た時間を測る)
         guard !item.isSleep else { return }
+        // 勉強の予定を「完了」にしたら、自動の集中モードを終える(押したほうを優先。次の予定の時間にまた入る)
+        if !item.done && item.isStudy {
+            screenTime.endAutoByUser()
+        }
         // タップしたときに「コツッ」と軽く振動させる
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         store.toggle(item)
