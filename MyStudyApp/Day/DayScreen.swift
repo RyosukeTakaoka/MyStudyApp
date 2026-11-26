@@ -42,6 +42,9 @@ struct DayScreen: View {
 
     /// ログインしている人の id(タイマーをサーバーで共有するときに使う)
     private let userId: UUID
+    /// 仮眠アラーム(イヤホンだけで鳴らす)
+    @State private var nap = NapAlarm()
+    @State private var showsNap = false
     /// 表示している日の夜の睡眠(ほかの予定と同じように一覧に出す)
     @State private var daySleeps: [SleepPlan] = []
     /// 上の帯(試験まで○日・次の答練・累計時間)
@@ -145,6 +148,9 @@ struct DayScreen: View {
             .onChange(of: store.doneCount) { _, _ in
                 rescheduleFocus()
                 exportToCalendar()   // チェックを付けたら、カレンダーの題名にも ✓ を付ける
+            }
+            .sheet(isPresented: $showsNap) {
+                NapAlarmView(nap: nap)
             }
             .sheet(isPresented: $showsFocusSettings, onDismiss: rescheduleFocus) {
                 FocusSettingsView(screenTime: screenTime)
@@ -262,6 +268,7 @@ struct DayScreen: View {
                 HStack(spacing: 0) {
                     List {
                         targetBandSection
+                        NapStatusRows(nap: nap)
                         syncStatusSection
                         focusSection
                         timerSection
@@ -283,6 +290,7 @@ struct DayScreen: View {
         } else {
             List {
                 targetBandSection
+                NapStatusRows(nap: nap)
                 syncStatusSection
                 focusSection
                 timerSection
@@ -415,6 +423,9 @@ struct DayScreen: View {
                 }
                 Toggle(isOn: $calendarSyncEnabled) {
                     Label("カレンダーと連携", systemImage: "calendar.badge.clock")
+                }
+                Button("仮眠アラーム(イヤホン)…", systemImage: "bed.double") {
+                    showsNap = true
                 }
                 Button("集中モード(スクリーンタイム)…", systemImage: "lock.shield") {
                     showsFocusSettings = true

@@ -16,6 +16,11 @@
 	<!-- ライブアクティビティ(ロック画面・ダイナミックアイランドの表示)を使う -->
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<!-- 仮眠アラーム: 画面を消しても、イヤホンで鳴らせるように、裏で音を流してよい -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<!-- 「特別な暗号は使っていません」という申告。TestFlight に上げるたびに質問されるのを省く -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
